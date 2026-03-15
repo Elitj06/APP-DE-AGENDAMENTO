@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .update({ status: body.status })
       .eq('id', params.id)
       .eq('studio_id', profile.studio_id)
-      .select(`*, students(id, name, phone, level, coins), trainers(id, name, specialty)`)
+      .select(`*, students(id, name, phone, level, coins), trainers(id, name, specialty), workout_prescriptions(id, name, muscle_groups)`)
       .single()
 
     if (error) throw error

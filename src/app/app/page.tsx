@@ -448,6 +448,16 @@ export default function AppPage() {
                             <span className="truncate">{a.service_type}</span>
                           </div>
                           <div className="text-xs text-white/40">com {a.trainers?.name ?? "—"} • {a.duration || 60}min</div>
+                          {a.workout_prescriptions && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              <span className="text-[10px] font-semibold bg-brand-500/20 text-brand-300 px-1.5 py-0.5 rounded-full">
+                                {a.workout_prescriptions.name}
+                              </span>
+                              {(a.workout_prescriptions.muscle_groups as string[]).map((mg: string) => (
+                                <span key={mg} className="text-[10px] text-white/40 bg-white/5 px-1.5 py-0.5 rounded-full">{mg}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-green-500/20 text-green-400 shrink-0">
                           ✓ Feito

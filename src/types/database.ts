@@ -303,6 +303,21 @@ export type Database = {
         Update: { status?: string; external_id?: string | null }
         Relationships: []
       }
+      workout_prescriptions: {
+        Row: {
+          id: string; studio_id: string; student_id: string
+          name: string; muscle_groups: string[]; description: string | null
+          active: boolean; created_at: string; updated_at: string
+        }
+        Insert: {
+          id?: string; studio_id: string; student_id: string
+          name: string; muscle_groups?: string[]; description?: string | null; active?: boolean
+        }
+        Update: {
+          name?: string; muscle_groups?: string[]; description?: string | null; active?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -347,6 +362,7 @@ export type CoinTransaction = T['coin_transactions']['Row']
 export type Reward = T['rewards']['Row']
 export type RewardRedemption = T['reward_redemptions']['Row']
 export type MonthlyRanking = T['monthly_rankings']['Row']
+export type WorkoutPrescription = T['workout_prescriptions']['Row']
 export type StudentPayment = T['student_payments']['Row']
 export type StudioBilling = T['studio_billing']['Row']
 export type NotificationLog = T['notification_logs']['Row']

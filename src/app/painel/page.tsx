@@ -28,11 +28,18 @@ interface StudentData {
   last_checkin?: string; joined_at: string; plan_name?: string;
 }
 
+interface WorkoutPrescriptionData {
+  id: string; name: string; muscle_groups: string[];
+  description?: string | null; student_id: string;
+}
+
 interface AppointmentData {
   id: string; date: string; time: string; duration: number;
   status: string; service_type: string; notes?: string;
+  prescription_id?: string | null;
   students?: { id: string; name: string; phone?: string; level: string; coins: number };
   trainers?: { id: string; name: string; specialty?: string };
+  workout_prescriptions?: { id: string; name: string; muscle_groups: string[] } | null;
 }
 
 interface TrainerData {
@@ -91,6 +98,13 @@ const COIN_RULES = [
 const SERVICE_TYPES = [
   "Personal Training", "Pilates", "Yoga", "CrossFit", "Funcional",
   "Avaliação Física", "Musculação", "Spinning",
+];
+
+const MUSCLE_GROUPS = [
+  "Peito", "Costas", "Ombros", "Bíceps", "Tríceps",
+  "Abdômen / Core", "Pernas (Geral)", "Quadríceps",
+  "Posterior de Coxa", "Glúteos", "Panturrilhas",
+  "Trapézio", "Antebraço", "Cardio / Aeróbico",
 ];
 
 const TIME_SLOTS = [
@@ -308,6 +322,7 @@ interface BookingForm {
   studentId: string; studentName: string;
   trainerId: string; serviceType: string;
   date: string; time: string; duration: number; notes: string;
+  prescriptionId: string;
 }
 
 function BookingModal({
@@ -322,7 +337,7 @@ function BookingModal({
   const [form, setForm] = useState<BookingForm>({
     studentId: "", studentName: "", trainerId: trainers[0]?.id ?? "",
     serviceType: SERVICE_TYPES[0], date: initialDate,
-    time: initialTime ?? "08:00", duration: 60, notes: "",
+    time: initialTime ?? "08:00", duration: 60, notes: "", prescriptionId: "",
   });
   const [students, setStudents] = useState<StudentData[]>([]);
   const [studentSearch, setStudentSearch] = useState("");
@@ -330,6 +345,15 @@ function BookingModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [prescriptions, setPrescriptions] = useState<WorkoutPrescriptionData[]>([]);
+
+  useEffect(() => {
+    if (!form.studentId) { setPrescriptions([]); setForm(f => ({ ...f, prescriptionId: "" })); return; }
+    fetch(`/api/workout-prescriptions?studentId=${form.studentId}`)
+      .then(r => r.json())
+      .then(d => setPrescriptions(Array.isArray(d) ? d : []))
+      .catch(() => setPrescriptions([]));
+  }, [form.studentId]);
 
   useEffect(() => {
     const q = studentSearch.trim();
@@ -354,6 +378,7 @@ function BookingModal({
           time: form.time,
           duration: form.duration,
           notes: form.notes || undefined,
+          prescriptionId: form.prescriptionId || undefined,
         }),
       });
       const data = await res.json();
@@ -469,6 +494,19 @@ function BookingModal({
                 ))}
               </div>
             </div>
+
+            {/* Prescription */}
+            {prescriptions.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Prescrição de Treino</label>
+                <select value={form.prescriptionId} onChange={e => setForm(f => ({ ...f, prescriptionId: e.target.value }))} className="input-base w-full">
+                  <option value="">Sem prescrição específica</option>
+                  {prescriptions.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} — {p.muscle_groups.join(", ")}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Notes */}
             <div>
@@ -944,6 +982,11 @@ function AlunosTab() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [studentHistory, setStudentHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [modalTab, setModalTab] = useState<"info" | "historico" | "prescricoes">("info");
+  const [prescriptions, setPrescriptions] = useState<WorkoutPrescriptionData[]>([]);
+  const [prescLoading, setPrescLoading] = useState(false);
+  const [newPresc, setNewPresc] = useState({ name: "", muscle_groups: [] as string[], description: "" });
+  const [savingPresc, setSavingPresc] = useState(false);
 
   useEffect(() => {
     fetch("/api/students")
@@ -954,8 +997,13 @@ function AlunosTab() {
   }, []);
 
   useEffect(() => {
-    if (!selected) { setStudentHistory([]); return; }
+    if (!selected) {
+      setStudentHistory([]); setPrescriptions([]);
+      setModalTab("info"); setNewPresc({ name: "", muscle_groups: [], description: "" });
+      return;
+    }
     setHistoryLoading(true);
+    setPrescLoading(true);
     fetch(`/api/appointments?studentId=${selected.id}`)
       .then(r => r.json())
       .then(data => {
@@ -966,7 +1014,34 @@ function AlunosTab() {
       })
       .catch(() => setStudentHistory([]))
       .finally(() => setHistoryLoading(false));
+    fetch(`/api/workout-prescriptions?studentId=${selected.id}`)
+      .then(r => r.json())
+      .then(d => setPrescriptions(Array.isArray(d) ? d : []))
+      .catch(() => setPrescriptions([]))
+      .finally(() => setPrescLoading(false));
   }, [selected]);
+
+  async function handleSavePresc() {
+    if (!selected || !newPresc.name.trim() || newPresc.muscle_groups.length === 0) return;
+    setSavingPresc(true);
+    try {
+      const res = await fetch("/api/workout-prescriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: selected.id, name: newPresc.name.trim(), muscleGroups: newPresc.muscle_groups, description: newPresc.description || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setPrescriptions(prev => [...prev, data]);
+      setNewPresc({ name: "", muscle_groups: [], description: "" });
+    } catch {}
+    finally { setSavingPresc(false); }
+  }
+
+  async function handleDeletePresc(id: string) {
+    await fetch(`/api/workout-prescriptions/${id}`, { method: "DELETE" });
+    setPrescriptions(prev => prev.filter(p => p.id !== id));
+  }
 
   function handleStudentCreated(student: StudentData) {
     setStudents(prev => [student, ...prev]);
@@ -1049,13 +1124,14 @@ function AlunosTab() {
 
       {selected && (
         <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-          <div className="card w-full max-w-md shadow-2xl dark:shadow-black/50" onClick={e => e.stopPropagation()}>
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-5">
-                <div className="flex items-center gap-4">
+          <div className="card w-full max-w-lg shadow-2xl dark:shadow-black/50 max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header fixo */}
+            <div className="p-5 pb-0 shrink-0">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
                   <Avatar name={selected.name ?? "?"} size="lg" />
                   <div>
-                    <h3 className="font-display font-bold text-xl text-surface-900 dark:text-white">{selected.name}</h3>
+                    <h3 className="font-display font-bold text-lg text-surface-900 dark:text-white">{selected.name}</h3>
                     <StatusBadge status={selected.status} />
                   </div>
                 </div>
@@ -1063,82 +1139,171 @@ function AlunosTab() {
                   <X size={16} />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-3 mb-5">
-                {[
-                  { label: "GymCoins", value: selected.coins, icon: <Coins size={16} className="text-brand-500" /> },
-                  { label: "Check-ins", value: selected.total_checkins, icon: <CheckCircle2 size={16} className="text-emerald-500" /> },
-                  { label: "Este Mês", value: selected.monthly_checkins, icon: <TrendingUp size={16} className="text-indigo-500" /> },
-                ].map(stat => (
-                  <div key={stat.label} className="bg-surface-50 dark:bg-surface-800 rounded-xl p-3 text-center">
-                    <div className="flex justify-center mb-1">{stat.icon}</div>
-                    <div className="text-xl font-display font-black text-surface-900 dark:text-white">{stat.value}</div>
-                    <div className="text-[10px] text-surface-400 uppercase font-semibold tracking-wider">{stat.label}</div>
-                  </div>
+              <div className="flex gap-1 border-b border-surface-200/60 dark:border-surface-700/60">
+                {([
+                  { id: "info" as const, label: "Info" },
+                  { id: "historico" as const, label: `Histórico (${studentHistory.length})` },
+                  { id: "prescricoes" as const, label: `Prescrições (${prescriptions.length})` },
+                ]).map(t => (
+                  <button key={t.id} onClick={() => setModalTab(t.id)}
+                    className={`px-4 py-2 text-xs font-semibold transition-all border-b-2 -mb-px ${modalTab === t.id ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"}`}>
+                    {t.label}
+                  </button>
                 ))}
               </div>
-              <div className="space-y-2 text-sm mb-5">
-                {[
-                  { icon: <Mail size={14} />, label: selected.email },
-                  ...(selected.phone ? [{ icon: <Phone size={14} />, label: selected.phone }] : []),
-                  { icon: <Dumbbell size={14} />, label: selected.plan_name ?? "Sem plano" },
-                  { icon: <Zap size={14} />, label: `Nível: ${selected.level}` },
-                  ...(selected.last_checkin ? [{ icon: <Clock size={14} />, label: `Último check-in: ${new Date(selected.last_checkin).toLocaleDateString("pt-BR")}` }] : []),
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2.5 text-surface-600 dark:text-surface-400">
-                    <span className="text-surface-400 dark:text-surface-500">{item.icon}</span>
-                    <span>{item.label}</span>
+            </div>
+
+            {/* Conteúdo com scroll */}
+            <div className="overflow-y-auto flex-1 p-5">
+
+              {/* ── INFO ── */}
+              {modalTab === "info" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "GymCoins", value: selected.coins, icon: <Coins size={16} className="text-brand-500" /> },
+                      { label: "Check-ins", value: selected.total_checkins, icon: <CheckCircle2 size={16} className="text-emerald-500" /> },
+                      { label: "Este Mês", value: selected.monthly_checkins, icon: <TrendingUp size={16} className="text-indigo-500" /> },
+                    ].map(stat => (
+                      <div key={stat.label} className="bg-surface-50 dark:bg-surface-800 rounded-xl p-3 text-center">
+                        <div className="flex justify-center mb-1">{stat.icon}</div>
+                        <div className="text-xl font-display font-black text-surface-900 dark:text-white">{stat.value}</div>
+                        <div className="text-[10px] text-surface-400 uppercase font-semibold tracking-wider">{stat.label}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="border-t border-surface-100 dark:border-surface-800 pt-4 mb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
-                    Histórico de Treinos
-                  </span>
-                  <span className="text-xs text-surface-400">{studentHistory.length} registros</span>
+                  <div className="space-y-2 text-sm">
+                    {[
+                      { icon: <Mail size={14} />, label: selected.email },
+                      ...(selected.phone ? [{ icon: <Phone size={14} />, label: selected.phone }] : []),
+                      { icon: <Dumbbell size={14} />, label: selected.plan_name ?? "Sem plano" },
+                      { icon: <Zap size={14} />, label: `Nível: ${selected.level}` },
+                      ...(selected.last_checkin ? [{ icon: <Clock size={14} />, label: `Último check-in: ${new Date(selected.last_checkin).toLocaleDateString("pt-BR")}` }] : []),
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-2.5 text-surface-600 dark:text-surface-400">
+                        <span className="text-surface-400 dark:text-surface-500">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                {historyLoading ? (
-                  <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+              )}
+
+              {/* ── HISTÓRICO ── */}
+              {modalTab === "historico" && (
+                historyLoading ? (
+                  <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
                 ) : studentHistory.length === 0 ? (
-                  <div className="text-center py-5 text-surface-400 dark:text-surface-600 text-xs">
-                    <Dumbbell className="mx-auto mb-1.5 opacity-30" size={22} />
+                  <div className="text-center py-10 text-surface-400 dark:text-surface-600 text-sm">
+                    <Dumbbell className="mx-auto mb-2 opacity-30" size={28} />
                     Nenhum treino registrado
                   </div>
                 ) : (
-                  <div className="max-h-52 overflow-y-auto space-y-0.5 -mx-1 px-1">
+                  <div className="space-y-1">
                     {studentHistory.map((a: any) => (
-                      <div key={a.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
-                        <div className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-950/30 flex flex-col items-center justify-center shrink-0">
+                      <div key={a.id} className="flex items-start gap-3 py-2.5 px-2 rounded-xl hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                        <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-950/30 flex flex-col items-center justify-center shrink-0">
                           <span className="text-[9px] text-brand-500 font-medium leading-tight">
-                            {new Date(a.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                            {new Date(a.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
                           </span>
                           <span className="text-[9px] text-brand-400 font-mono leading-tight">{a.time?.slice(0, 5)}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold text-surface-900 dark:text-white truncate">{a.service_type}</div>
-                          <div className="text-[10px] text-surface-400 truncate">
-                            {a.trainers?.name ?? "—"}{a.duration ? ` • ${a.duration}min` : ""}
-                          </div>
+                          <div className="text-xs font-semibold text-surface-900 dark:text-white">{a.service_type}</div>
+                          <div className="text-[10px] text-surface-400">{a.trainers?.name ?? "—"}{a.duration ? ` • ${a.duration}min` : ""}</div>
+                          {a.workout_prescriptions && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              <span className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 px-1.5 py-0.5 rounded-full">
+                                {a.workout_prescriptions.name}
+                              </span>
+                              {(a.workout_prescriptions.muscle_groups as string[]).map((mg: string) => (
+                                <span key={mg} className="text-[10px] text-surface-500 bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded-full">{mg}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0 ${
-                          a.status === "completed"
-                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
-                            : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
-                        }`}>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0 mt-0.5 ${a.status === "completed" ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"}`}>
                           {a.status === "completed" ? "Concluído" : "Check-in"}
                         </span>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
+                )
+              )}
 
-              <div className="flex gap-2">
-                <button className="btn-primary flex-1 py-2.5 text-sm flex items-center justify-center gap-2">
-                  <MessageSquare size={15} /> Mensagem
-                </button>
-                <button onClick={() => setSelected(null)} className="btn-ghost flex-1 py-2.5 text-sm">Fechar</button>
-              </div>
+              {/* ── PRESCRIÇÕES ── */}
+              {modalTab === "prescricoes" && (
+                <div className="space-y-4">
+                  {prescLoading ? (
+                    <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+                  ) : prescriptions.length === 0 ? (
+                    <div className="text-center py-6 text-surface-400 dark:text-surface-600 text-sm">
+                      <Dumbbell className="mx-auto mb-2 opacity-30" size={28} />
+                      Nenhuma prescrição cadastrada
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {prescriptions.map(p => (
+                        <div key={p.id} className="flex items-start gap-3 p-3 rounded-xl border border-surface-200/40 dark:border-surface-700/40 bg-surface-50/50 dark:bg-surface-800/30">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-surface-900 dark:text-white">{p.name}</div>
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {p.muscle_groups.map(mg => (
+                                <span key={mg} className="text-[10px] font-medium bg-brand-50 dark:bg-brand-950/40 text-brand-600 dark:text-brand-400 border border-brand-200/50 dark:border-brand-800/50 px-2 py-0.5 rounded-full">{mg}</span>
+                              ))}
+                            </div>
+                            {p.description && <p className="text-xs text-surface-400 mt-1.5">{p.description}</p>}
+                          </div>
+                          <button onClick={() => handleDeletePresc(p.id)}
+                            className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-400 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/40 transition-all shrink-0">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border-t border-surface-100 dark:border-surface-800 pt-4 space-y-3">
+                    <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">Nova Prescrição</p>
+                    <input value={newPresc.name} onChange={e => setNewPresc(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Nome: Treino A, Treino B, Full Body..." className="input-base w-full" />
+                    <div>
+                      <p className="text-xs text-surface-400 mb-2">Grupos musculares *</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {MUSCLE_GROUPS.map(mg => {
+                          const active = newPresc.muscle_groups.includes(mg);
+                          return (
+                            <button key={mg} type="button"
+                              onClick={() => setNewPresc(p => ({
+                                ...p,
+                                muscle_groups: active ? p.muscle_groups.filter(x => x !== mg) : [...p.muscle_groups, mg],
+                              }))}
+                              className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all border ${active ? "bg-brand-500 border-brand-500 text-white" : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-400 hover:border-brand-300"}`}>
+                              {mg}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <textarea value={newPresc.description} onChange={e => setNewPresc(p => ({ ...p, description: e.target.value }))}
+                      placeholder="Observações (opcional)..." className="input-base w-full resize-none h-14" />
+                    <button onClick={handleSavePresc}
+                      disabled={savingPresc || !newPresc.name.trim() || newPresc.muscle_groups.length === 0}
+                      className="btn-primary w-full py-2.5 text-sm flex items-center justify-center gap-2">
+                      {savingPresc ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus size={15} />}
+                      {savingPresc ? "Salvando..." : "Adicionar Prescrição"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-surface-100 dark:border-surface-800 flex gap-2 shrink-0">
+              <button className="btn-primary flex-1 py-2.5 text-sm flex items-center justify-center gap-2">
+                <MessageSquare size={15} /> Mensagem
+              </button>
+              <button onClick={() => setSelected(null)} className="btn-ghost flex-1 py-2.5 text-sm">Fechar</button>
             </div>
           </div>
         </div>

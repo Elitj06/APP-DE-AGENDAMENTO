@@ -11,6 +11,7 @@ const createSchema = z.object({
   duration: z.number().optional(),
   notes: z.string().optional(),
   slotId: z.string().uuid().optional(),
+  prescriptionId: z.string().uuid().optional(),
 })
 
 // GET /api/appointments
@@ -33,7 +34,8 @@ export async function GET(req: NextRequest) {
     .select(`
       *,
       students (id, name, phone, level, coins),
-      trainers (id, name, specialty)
+      trainers (id, name, specialty),
+      workout_prescriptions (id, name, muscle_groups)
     `)
     .eq('studio_id', profile.studio_id)
     .order('time')
@@ -90,9 +92,10 @@ export async function POST(req: NextRequest) {
         time: body.time,
         duration: body.duration,
         notes: body.notes,
+        prescription_id: body.prescriptionId ?? null,
         status: 'booked',
       })
-      .select(`*, students(name, phone), trainers(name)`)
+      .select(`*, students(name, phone), trainers(name), workout_prescriptions(id, name, muscle_groups)`)
       .single()
 
     if (error) throw error
