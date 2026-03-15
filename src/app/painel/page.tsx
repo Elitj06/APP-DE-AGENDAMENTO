@@ -1,92 +1,61 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import {
+  LayoutDashboard, CalendarDays, Users, BarChart2, MessageSquare,
+  Settings, Monitor, LogOut, Sun, Moon, Plus, ChevronLeft, ChevronRight,
+  X, Check, UserCheck, XCircle, Search, Coins, Trophy, TrendingUp,
+  Clock, Dumbbell, Phone, Mail, MapPin, Zap, Bell, Shield, CreditCard,
+  ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, Ban,
+} from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────
 interface StudioData {
-  id: string;
-  name: string;
-  owner_name: string;
-  email: string;
-  address?: string;
-  establishment_type: string;
-  plan: string;
+  id: string; name: string; owner_name: string; email: string;
+  address?: string; establishment_type: string; plan: string;
 }
 
 interface StudentData {
-  id: string;
-  full_name: string;
-  email: string;
-  phone?: string;
-  status: string;
-  level: string;
-  coins: number;
-  total_checkins: number;
-  monthly_checkins: number;
-  last_checkin?: string;
-  joined_at: string;
-  plan_name?: string;
+  id: string; name: string; email: string; phone?: string;
+  status: string; level: string; coins: number;
+  total_checkins: number; monthly_checkins: number;
+  last_checkin?: string; joined_at: string; plan_name?: string;
 }
 
 interface AppointmentData {
-  id: string;
-  date: string;
-  time: string;
-  duration: number;
-  status: string;
-  service_type: string;
-  student?: { full_name: string };
-  trainer?: { name: string };
+  id: string; date: string; time: string; duration: number;
+  status: string; service_type: string; notes?: string;
+  students?: { id: string; name: string; phone?: string; level: string; coins: number };
+  trainers?: { id: string; name: string; specialty?: string };
 }
 
 interface TrainerData {
-  id: string;
-  name: string;
-  specialty?: string;
-  active_students: number;
-  rating?: number;
+  id: string; name: string; specialty?: string;
+  active_students: number; rating?: number;
 }
 
 interface DashboardData {
-  totalStudents: number;
-  activeStudents: number;
-  newThisMonth: number;
-  mrr: number;
-  mrrGrowth: number;
-  churnRate: number;
-  todayCheckins: number;
-  todayAppointments: number;
+  totalStudents: number; activeStudents: number; newThisMonth: number;
+  mrr: number; mrrGrowth: number; churnRate: number;
+  todayCheckins: number; todayAppointments: number;
   recentCheckins: Array<{ student_name: string; time: string; coins_earned: number }>;
   rankingTop5: Array<{ rank: number; student_name: string; checkins: number; coins: number }>;
 }
 
 interface CoinTx {
-  id: string;
-  amount: number;
-  description: string;
-  created_at: string;
+  id: string; amount: number; description: string; created_at: string;
   profiles?: { full_name: string };
 }
 
 interface RewardData {
-  id: string;
-  name: string;
-  description?: string | null;
-  coins_cost: number;
-  emoji?: string | null;
-  is_active: boolean;
+  id: string; name: string; description?: string | null;
+  coins_cost: number; emoji?: string | null; is_active: boolean;
   stock_quantity?: number | null;
 }
 
 interface PaymentStats {
-  totalRevenue: number;
-  pendingRevenue: number;
-  overdueRevenue: number;
-  paidCount: number;
-  pendingCount: number;
-  overdueCount: number;
-  paidThisMonth: number;
+  total: number; paid: number; pending: number; overdue: number;
 }
 
 // ── Static constants ─────────────────────────────────────────
@@ -114,71 +83,91 @@ const COIN_RULES = [
   { label: "Bônus por indicação", value: 150 },
 ];
 
-// ── Icons ────────────────────────────────────────────────────
-const Icons = {
-  home: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-  calendar: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
-  users: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-  coin: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M8 10h8"/><path d="M8 14h8"/></svg>,
-  chart: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
-  whatsapp: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>,
-  settings: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  tv: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>,
-};
+const SERVICE_TYPES = [
+  "Personal Training", "Pilates", "Yoga", "CrossFit", "Funcional",
+  "Avaliação Física", "Musculação", "Spinning",
+];
+
+const TIME_SLOTS = [
+  "06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30",
+  "10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30",
+  "14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30",
+  "18:00","18:30","19:00","19:30","20:00","20:30","21:00",
+];
 
 type Tab = "overview" | "agenda" | "alunos" | "coins" | "financeiro" | "whatsapp" | "config";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "overview", label: "Visão Geral", icon: Icons.home },
-  { id: "agenda", label: "Agenda", icon: Icons.calendar },
-  { id: "alunos", label: "Alunos", icon: Icons.users },
-  { id: "coins", label: "GymCoins", icon: Icons.coin },
-  { id: "financeiro", label: "Financeiro", icon: Icons.chart },
-  { id: "whatsapp", label: "WhatsApp", icon: Icons.whatsapp },
-  { id: "config", label: "Configurar", icon: Icons.settings },
+  { id: "overview", label: "Visão Geral", icon: <LayoutDashboard size={18} /> },
+  { id: "agenda", label: "Agenda", icon: <CalendarDays size={18} /> },
+  { id: "alunos", label: "Alunos", icon: <Users size={18} /> },
+  { id: "coins", label: "GymCoins", icon: <Coins size={18} /> },
+  { id: "financeiro", label: "Financeiro", icon: <BarChart2 size={18} /> },
+  { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare size={18} /> },
+  { id: "config", label: "Configurar", icon: <Settings size={18} /> },
 ];
+
+// ── Dark Mode Hook ────────────────────────────────────────────
+function useTheme() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+  const toggle = useCallback(() => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    try { localStorage.setItem("theme", next ? "dark" : "light"); } catch {}
+  }, [dark]);
+  return { dark, toggle };
+}
 
 // ── Helper Components ────────────────────────────────────────
 function KPI({ label, value, sub, trend }: { label: string; value: string; sub?: string; trend?: string }) {
   const isPositive = trend?.startsWith("+");
   return (
-    <div className="bg-white rounded-2xl p-5 border border-surface-200/60 hover:shadow-lg hover:shadow-brand-500/5 transition-all">
-      <div className="text-xs text-surface-700/50 font-medium uppercase tracking-wider mb-2">{label}</div>
-      <div className="font-display font-black text-2xl text-surface-900 tracking-tight">{value}</div>
+    <div className="card p-5 hover:shadow-lg hover:shadow-brand-500/5 transition-all duration-200">
+      <div className="text-[11px] text-surface-500 dark:text-surface-500 font-semibold uppercase tracking-widest mb-2">{label}</div>
+      <div className="font-display font-black text-2xl text-surface-900 dark:text-white tracking-tight">{value}</div>
       <div className="flex items-center gap-2 mt-1">
-        {sub && <span className="text-xs text-surface-700/40">{sub}</span>}
-        {trend && <span className={`text-xs font-semibold ${isPositive ? "text-green-600" : "text-red-500"}`}>{trend}</span>}
+        {sub && <span className="text-xs text-surface-500 dark:text-surface-500">{sub}</span>}
+        {trend && (
+          <span className={`text-xs font-bold flex items-center gap-0.5 ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+            {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}{trend}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    active: "bg-green-50 text-green-700 border-green-200",
-    inactive: "bg-surface-100 text-surface-700/40 border-surface-200",
-    overdue: "bg-red-50 text-red-600 border-red-200",
-    booked: "bg-blue-50 text-blue-600 border-blue-200",
-    confirmed: "bg-indigo-50 text-indigo-600 border-indigo-200",
-    checked_in: "bg-green-50 text-green-600 border-green-200",
-    completed: "bg-surface-100 text-surface-700/60 border-surface-200",
-    cancelled: "bg-red-50 text-red-500 border-red-200",
-    no_show: "bg-amber-50 text-amber-600 border-amber-200",
+  const map: Record<string, { cls: string; label: string; icon?: React.ReactNode }> = {
+    active:     { cls: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800", label: "Ativo" },
+    inactive:   { cls: "bg-surface-100 dark:bg-surface-800 text-surface-500 border-surface-200 dark:border-surface-700", label: "Inativo" },
+    overdue:    { cls: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800", label: "Inadimplente" },
+    booked:     { cls: "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800", label: "Agendado" },
+    confirmed:  { cls: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800", label: "Confirmado" },
+    checked_in: { cls: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800", label: "Check-in" },
+    completed:  { cls: "bg-surface-100 dark:bg-surface-800 text-surface-500 border-surface-200 dark:border-surface-700", label: "Concluído" },
+    cancelled:  { cls: "bg-red-50 dark:bg-red-950/40 text-red-500 dark:text-red-400 border-red-200 dark:border-red-800", label: "Cancelado" },
+    no_show:    { cls: "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800", label: "Faltou" },
   };
-  const labels: Record<string, string> = {
-    active: "Ativo", inactive: "Inativo", overdue: "Inadimplente",
-    booked: "Agendado", confirmed: "Confirmado", checked_in: "Check-in",
-    completed: "Concluído", cancelled: "Cancelado", no_show: "Faltou",
-  };
-  return <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${styles[status] || styles.active}`}>{labels[status] || status}</span>;
+  const s = map[status] ?? map.active;
+  return <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${s.cls}`}>{s.label}</span>;
 }
 
-function Avatar({ initials, size = "md" }: { initials: string; size?: "sm" | "md" | "lg" }) {
+function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
   const sz = size === "sm" ? "w-8 h-8 text-xs" : size === "lg" ? "w-14 h-14 text-lg" : "w-10 h-10 text-sm";
-  return <div className={`${sz} rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold shrink-0`}>{initials}</div>;
+  const initials = name.trim().split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className={`${sz} rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-bold shrink-0 shadow-md shadow-brand-500/20`}>
+      {initials}
+    </div>
+  );
 }
 
 function Skeleton({ className }: { className: string }) {
-  return <div className={`animate-pulse bg-surface-200 rounded-xl ${className}`} />;
+  return <div className={`animate-pulse bg-surface-200 dark:bg-surface-800 rounded-xl ${className}`} />;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -193,72 +182,85 @@ function OverviewTab({ dashboard, trainers, loading }: {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
         </div>
         <div className="grid lg:grid-cols-2 gap-4">
-          <Skeleton className="h-64" />
-          <Skeleton className="h-64" />
+          <Skeleton className="h-72" /><Skeleton className="h-72" />
         </div>
       </div>
     );
   }
 
   const d = dashboard;
-  const todayCheckins = d?.todayCheckins ?? 0;
-  const todayAppts = d?.todayAppointments ?? 0;
   const recentCheckins = d?.recentCheckins ?? [];
   const rankingTop5 = d?.rankingTop5 ?? [];
 
   return (
     <div className="space-y-6 stagger">
-      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="Alunos Ativos" value={(d?.activeStudents ?? 0).toString()} sub={`${d?.newThisMonth ?? 0} novos`} trend={`+${d?.mrrGrowth?.toFixed(1) ?? 0}%`} />
-        <KPI label="MRR" value={`R$ ${((d?.mrr ?? 0) / 100 / 1000).toFixed(1)}K`} trend={`+${d?.mrrGrowth?.toFixed(1) ?? 0}%`} />
-        <KPI label="Aulas Hoje" value={`${todayCheckins}/${todayAppts}`} sub="check-ins/agendadas" />
-        <KPI label="Ranking Top" value={rankingTop5[0]?.student_name?.split(" ")[0] ?? "—"} sub={`${rankingTop5[0]?.checkins ?? 0} check-ins`} />
+        <KPI label="Alunos Ativos" value={(d?.activeStudents ?? 0).toString()} sub={`${d?.newThisMonth ?? 0} novos este mês`} trend={`+${d?.mrrGrowth?.toFixed(1) ?? 0}%`} />
+        <KPI label="MRR" value={`R$ ${((d?.mrr ?? 0) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`} trend={`+${d?.mrrGrowth?.toFixed(1) ?? 0}%`} />
+        <KPI label="Aulas Hoje" value={(d?.todayCheckins ?? 0).toString()} sub={`${d?.todayAppointments ?? 0} agendadas`} />
+        <KPI label="Top do Mês" value={rankingTop5[0]?.student_name?.split(" ")[0] ?? "—"} sub={`${rankingTop5[0]?.checkins ?? 0} check-ins`} />
       </div>
 
-      {/* Recent Check-ins + Ranking */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">Check-ins Recentes</h3>
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-display font-bold text-surface-900 dark:text-white">Check-ins Recentes</h3>
+            <span className="text-xs bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full font-semibold">
+              ● Ao vivo
+            </span>
+          </div>
           {recentCheckins.length === 0 ? (
-            <div className="text-center py-8 text-surface-700/30 text-sm">Nenhum check-in hoje ainda</div>
+            <div className="text-center py-10 text-surface-400 dark:text-surface-600 text-sm">
+              <Dumbbell className="mx-auto mb-2 opacity-30" size={32} />
+              <p>Nenhum check-in hoje ainda</p>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {recentCheckins.slice(0, 6).map((c, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-surface-100 last:border-0">
-                  <span className="text-sm font-mono text-surface-700/50 w-12">{c.time}</span>
-                  <Avatar initials={c.student_name.slice(0, 2).toUpperCase()} size="sm" />
+            <div className="space-y-1">
+              {recentCheckins.slice(0, 7).map((c, i) => (
+                <div key={i} className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                  <span className="text-xs font-mono text-surface-400 w-12">{c.time}</span>
+                  <Avatar name={c.student_name} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-surface-900 truncate">{c.student_name}</div>
-                    <div className="text-xs text-surface-700/40">+{c.coins_earned} 🪙</div>
+                    <div className="text-sm font-semibold text-surface-900 dark:text-white truncate">{c.student_name}</div>
+                    <div className="text-xs text-surface-400 flex items-center gap-1">
+                      <Coins size={10} /> +{c.coins_earned} GymCoins
+                    </div>
                   </div>
-                  <span className="text-xs bg-green-50 text-green-600 border border-green-200 px-2 py-0.5 rounded-full font-semibold">✓</span>
+                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">🏆 Ranking do Mês</h3>
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-display font-bold text-surface-900 dark:text-white">Ranking do Mês</h3>
+            <Trophy size={18} className="text-amber-500" />
+          </div>
           {rankingTop5.length === 0 ? (
-            <div className="text-center py-8 text-surface-700/30 text-sm">Sem dados de ranking ainda</div>
+            <div className="text-center py-10 text-surface-400 dark:text-surface-600 text-sm">
+              <Trophy className="mx-auto mb-2 opacity-30" size={32} />
+              <p>Sem dados de ranking ainda</p>
+            </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {rankingTop5.map((r, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-surface-100 last:border-0">
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-amber-100 text-amber-700" : i === 1 ? "bg-surface-100 text-surface-600" : i === 2 ? "bg-orange-100 text-orange-700" : "bg-surface-50 text-surface-500"}`}>
+                <div key={i} className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i === 0 ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400" : i === 1 ? "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400" : i === 2 ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400" : "bg-surface-50 dark:bg-surface-800 text-surface-500"}`}>
                     {i + 1}
                   </span>
-                  <Avatar initials={r.student_name.slice(0, 2).toUpperCase()} size="sm" />
+                  <Avatar name={r.student_name} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-surface-900 truncate">{r.student_name}</div>
-                    <div className="text-xs text-surface-700/40">{r.checkins} check-ins</div>
+                    <div className="text-sm font-semibold text-surface-900 dark:text-white truncate">{r.student_name}</div>
+                    <div className="text-xs text-surface-400">{r.checkins} check-ins</div>
                   </div>
-                  <span className="text-sm font-bold text-brand-500">{r.coins} 🪙</span>
+                  <div className="flex items-center gap-1 text-sm font-bold text-brand-500">
+                    <Coins size={14} />{r.coins}
+                  </div>
                 </div>
               ))}
             </div>
@@ -266,19 +268,21 @@ function OverviewTab({ dashboard, trainers, loading }: {
         </div>
       </div>
 
-      {/* Trainers */}
       {trainers.length > 0 && (
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">Equipe</h3>
-          <div className="grid md:grid-cols-3 gap-4">
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-display font-bold text-surface-900 dark:text-white">Equipe</h3>
+            <span className="text-xs text-surface-400">{trainers.length} profissional{trainers.length > 1 ? "is" : ""}</span>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {trainers.map(t => (
-              <div key={t.id} className="flex items-center gap-4 p-4 rounded-xl bg-surface-50 border border-surface-200/40">
-                <Avatar initials={t.name.slice(0, 2).toUpperCase()} size="lg" />
+              <div key={t.id} className="flex items-center gap-4 p-4 rounded-xl bg-surface-50 dark:bg-surface-800/50 border border-surface-200/40 dark:border-surface-700/40 hover:border-brand-300/40 transition-all">
+                <Avatar name={t.name} size="lg" />
                 <div>
-                  <div className="font-semibold text-surface-900">{t.name}</div>
-                  <div className="text-xs text-surface-700/40">{t.specialty ?? "Trainer"}</div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-surface-700/50">
-                    <span>{t.active_students} alunos</span>
+                  <div className="font-semibold text-surface-900 dark:text-white">{t.name}</div>
+                  <div className="text-xs text-surface-400 mt-0.5">{t.specialty ?? "Trainer"}</div>
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-surface-400">
+                    <span className="flex items-center gap-1"><Users size={11} />{t.active_students} alunos</span>
                     {t.rating && <span>⭐ {t.rating.toFixed(1)}</span>}
                   </div>
                 </div>
@@ -292,103 +296,492 @@ function OverviewTab({ dashboard, trainers, loading }: {
 }
 
 // ══════════════════════════════════════════════════════════════
+// BOOKING MODAL
+// ══════════════════════════════════════════════════════════════
+interface BookingForm {
+  studentId: string; studentName: string;
+  trainerId: string; serviceType: string;
+  date: string; time: string; duration: number; notes: string;
+}
+
+function BookingModal({
+  onClose, onCreated, trainers, initialDate, initialTime,
+}: {
+  onClose: () => void;
+  onCreated: (appt: AppointmentData) => void;
+  trainers: TrainerData[];
+  initialDate: string;
+  initialTime?: string;
+}) {
+  const [form, setForm] = useState<BookingForm>({
+    studentId: "", studentName: "", trainerId: trainers[0]?.id ?? "",
+    serviceType: SERVICE_TYPES[0], date: initialDate,
+    time: initialTime ?? "08:00", duration: 60, notes: "",
+  });
+  const [students, setStudents] = useState<StudentData[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [showStudentList, setShowStudentList] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const q = studentSearch.trim();
+    if (q.length < 1) { setStudents([]); return; }
+    const url = `/api/students?search=${encodeURIComponent(q)}&status=active`;
+    fetch(url).then(r => r.json()).then(d => setStudents(Array.isArray(d) ? d.slice(0, 8) : []));
+  }, [studentSearch]);
+
+  async function handleSubmit() {
+    if (!form.studentId) { setError("Selecione um aluno"); return; }
+    if (!form.trainerId) { setError("Selecione um professor"); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: form.studentId,
+          trainerId: form.trainerId,
+          serviceType: form.serviceType,
+          date: form.date,
+          time: form.time,
+          duration: form.duration,
+          notes: form.notes || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao criar agendamento");
+      onCreated(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="card w-full max-w-lg shadow-2xl dark:shadow-black/50" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="font-display font-bold text-xl text-surface-900 dark:text-white">Novo Agendamento</h2>
+              <p className="text-xs text-surface-400 mt-0.5">Preencha os dados para criar uma aula</p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700 transition-all">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Student picker */}
+            <div className="relative">
+              <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Aluno *</label>
+              <div className="relative">
+                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400" />
+                <input
+                  ref={searchRef}
+                  value={form.studentId ? form.studentName : studentSearch}
+                  onChange={e => {
+                    if (form.studentId) { setForm(f => ({ ...f, studentId: "", studentName: "" })); }
+                    setStudentSearch(e.target.value);
+                    setShowStudentList(true);
+                  }}
+                  onFocus={() => setShowStudentList(true)}
+                  placeholder="Buscar aluno..."
+                  className="input-base w-full pl-9"
+                />
+                {form.studentId && (
+                  <button onClick={() => { setForm(f => ({ ...f, studentId: "", studentName: "" })); setStudentSearch(""); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              {showStudentList && students.length > 0 && !form.studentId && (
+                <div className="absolute top-full left-0 right-0 mt-1 card shadow-xl z-10 py-1 max-h-48 overflow-y-auto">
+                  {students.map(s => (
+                    <button key={s.id} onMouseDown={() => {
+                      setForm(f => ({ ...f, studentId: s.id, studentName: s.name }));
+                      setStudentSearch("");
+                      setShowStudentList(false);
+                    }} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-50 dark:hover:bg-surface-800 text-left transition-colors">
+                      <Avatar name={s.name} size="sm" />
+                      <div>
+                        <div className="text-sm font-semibold text-surface-900 dark:text-white">{s.name}</div>
+                        <div className="text-xs text-surface-400">{s.plan_name ?? "Sem plano"} • {s.level}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Row: Date + Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Data *</label>
+                <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className="input-base w-full" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Horário *</label>
+                <select value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} className="input-base w-full">
+                  {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Row: Trainer + Service */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Professor *</label>
+                <select value={form.trainerId} onChange={e => setForm(f => ({ ...f, trainerId: e.target.value }))} className="input-base w-full">
+                  {trainers.length === 0
+                    ? <option value="">Nenhum professor</option>
+                    : trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                  }
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Modalidade *</label>
+                <select value={form.serviceType} onChange={e => setForm(f => ({ ...f, serviceType: e.target.value }))} className="input-base w-full">
+                  {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Duração</label>
+              <div className="flex gap-2">
+                {[30, 45, 60, 90].map(d => (
+                  <button key={d} onClick={() => setForm(f => ({ ...f, duration: d }))}
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all border ${form.duration === d ? "bg-brand-500 border-brand-500 text-white" : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-400 hover:border-brand-300"}`}>
+                    {d}min
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Observações</label>
+              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Informações adicionais (opcional)..."
+                className="input-base w-full resize-none h-16" />
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                <AlertCircle size={15} />{error}
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 mt-6">
+            <button onClick={onClose} className="btn-ghost flex-1 py-3 text-sm">Cancelar</button>
+            <button onClick={handleSubmit} disabled={submitting || !form.studentId}
+              className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2">
+              {submitting ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : <Plus size={16} />}
+              {submitting ? "Criando..." : "Criar Agendamento"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // AGENDA TAB
 // ══════════════════════════════════════════════════════════════
 function AgendaTab({ trainers }: { trainers: TrainerData[] }) {
-  const today = new Date().toISOString().split("T")[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
-  const dayAfter = new Date(Date.now() + 172800000).toISOString().split("T")[0];
-
-  const [selectedDate, setSelectedDate] = useState(today);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [appointments, setAppointments] = useState<AppointmentData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTrainer, setSelectedTrainer] = useState<string>("all");
+  const [showModal, setShowModal] = useState(false);
+  const [modalTime, setModalTime] = useState<string | undefined>(undefined);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const dateStr = currentDate.toISOString().split("T")[0];
+  const isToday = dateStr === todayStr;
+
+  const displayDate = currentDate.toLocaleDateString("pt-BR", {
+    weekday: "long", day: "numeric", month: "long",
+  });
+
+  function prevDay() { setCurrentDate(d => new Date(d.getTime() - 86400000)); }
+  function nextDay() { setCurrentDate(d => new Date(d.getTime() + 86400000)); }
+  function goToday() { setCurrentDate(new Date()); }
+
+  const fetchAppointments = useCallback(() => {
     setLoading(true);
-    fetch(`/api/appointments?date=${selectedDate}`)
+    fetch(`/api/appointments?date=${dateStr}`)
       .then(r => r.json())
       .then(data => setAppointments(Array.isArray(data) ? data : []))
       .catch(() => setAppointments([]))
       .finally(() => setLoading(false));
-  }, [selectedDate]);
+  }, [dateStr]);
 
-  const timeSlots = ["06:00","07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
-  const dateLabels: Record<string, string> = {
-    [today]: "Hoje",
-    [tomorrow]: "Amanhã",
-    [dayAfter]: new Date(Date.now() + 172800000).toLocaleDateString("pt-BR", { day: "numeric", month: "short" }),
-  };
+  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
+
+  async function updateStatus(id: string, status: string) {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/appointments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAppointments(prev => prev.map(a => a.id === id ? updated : a));
+      }
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  const filtered = selectedTrainer === "all"
+    ? appointments
+    : appointments.filter(a => a.trainers?.id === selectedTrainer);
+
+  // Group by trainer for column view
+  const trainerColumns = selectedTrainer === "all" && trainers.length > 1
+    ? trainers
+    : (selectedTrainer !== "all" ? trainers.filter(t => t.id === selectedTrainer) : null);
+
+  function getApptForSlot(time: string, trainerId?: string) {
+    return filtered.find(a => {
+      const match = a.time?.startsWith(time);
+      if (trainerId) return match && a.trainers?.id === trainerId;
+      return match;
+    });
+  }
+
+  const VIEW_SLOTS = TIME_SLOTS.filter((_, i) => i % 2 === 0); // hourly view
 
   return (
-    <div className="space-y-6 stagger">
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-bold text-surface-900">Agenda</h3>
-          <div className="flex gap-2">
-            {[today, tomorrow, dayAfter].map(d => (
-              <button key={d} onClick={() => setSelectedDate(d)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${d === selectedDate ? "bg-brand-500 text-white" : "bg-surface-50 text-surface-700/60 hover:bg-surface-100"}`}>
-                {dateLabels[d]}
-              </button>
-            ))}
+    <div className="space-y-5 stagger">
+      {/* Toolbar */}
+      <div className="card p-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          {/* Date navigation */}
+          <div className="flex items-center gap-2">
+            <button onClick={prevDay} className="w-9 h-9 rounded-xl btn-ghost flex items-center justify-center">
+              <ChevronLeft size={16} />
+            </button>
+            <div className="text-center min-w-[180px]">
+              <div className="font-display font-bold text-surface-900 dark:text-white capitalize text-sm">{displayDate}</div>
+              {!isToday && (
+                <button onClick={goToday} className="text-[11px] text-brand-500 hover:text-brand-600 font-medium transition-colors">
+                  Voltar para hoje
+                </button>
+              )}
+            </div>
+            <button onClick={nextDay} className="w-9 h-9 rounded-xl btn-ghost flex items-center justify-center">
+              <ChevronRight size={16} />
+            </button>
           </div>
+
+          {/* Trainer filter */}
+          {trainers.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => setSelectedTrainer("all")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${selectedTrainer === "all" ? "bg-brand-500 text-white" : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"}`}>
+                Todos
+              </button>
+              {trainers.map(t => (
+                <button key={t.id} onClick={() => setSelectedTrainer(t.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${selectedTrainer === t.id ? "bg-brand-500 text-white" : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"}`}>
+                  {t.name.split(" ")[0]}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button onClick={() => { setModalTime(undefined); setShowModal(true); }}
+            className="btn-primary ml-auto px-4 py-2 text-sm flex items-center gap-2">
+            <Plus size={16} /> Agendar
+          </button>
+        </div>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="card overflow-hidden">
+        {/* Day stats */}
+        <div className="grid grid-cols-3 border-b border-surface-200/60 dark:border-surface-800/60">
+          {[
+            { label: "Total", value: filtered.length, icon: <CalendarDays size={14} className="text-brand-500" /> },
+            { label: "Confirmados", value: filtered.filter(a => ["confirmed","checked_in"].includes(a.status)).length, icon: <CheckCircle2 size={14} className="text-emerald-500" /> },
+            { label: "Pendentes", value: filtered.filter(a => a.status === "booked").length, icon: <Clock size={14} className="text-amber-500" /> },
+          ].map(stat => (
+            <div key={stat.label} className="flex items-center justify-center gap-2 py-3 border-r border-surface-200/60 dark:border-surface-800/60 last:border-0">
+              {stat.icon}
+              <span className="font-display font-bold text-surface-900 dark:text-white text-sm">{stat.value}</span>
+              <span className="text-xs text-surface-400">{stat.label}</span>
+            </div>
+          ))}
         </div>
 
         {loading ? (
-          <div className="space-y-2">
-            {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-14" />)}
+          <div className="p-6 space-y-2">
+            {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-14" />)}
           </div>
         ) : (
-          <div className="space-y-1">
-            {timeSlots.map(time => {
-              const appt = appointments.find(a => a.time?.startsWith(time));
-              return (
-                <div key={time} className="flex items-center gap-4 py-2 border-b border-surface-100/60 last:border-0">
-                  <span className="text-sm font-mono text-surface-700/40 w-12">{time}</span>
-                  {appt ? (
-                    <div className="flex-1 flex items-center gap-3 bg-brand-50/50 rounded-xl px-4 py-3 border border-brand-200/30">
-                      <Avatar initials={(appt.student?.full_name ?? "?").slice(0, 2).toUpperCase()} size="sm" />
-                      <div className="flex-1">
-                        <div className="text-sm font-semibold text-surface-900">{appt.student?.full_name ?? "—"}</div>
-                        <div className="text-xs text-surface-700/40">{appt.service_type} • {appt.duration}min • {appt.trainer?.name ?? "—"}</div>
-                      </div>
-                      <StatusBadge status={appt.status} />
+          <div className="overflow-x-auto">
+            {/* If multi-trainer: column layout */}
+            {trainerColumns && trainerColumns.length > 1 ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-200/60 dark:border-surface-800/60">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-surface-400 w-16">Hora</th>
+                    {trainerColumns.map(t => (
+                      <th key={t.id} className="text-left px-4 py-3 text-xs font-semibold text-surface-700 dark:text-surface-300">
+                        <div className="flex items-center gap-2">
+                          <Avatar name={t.name} size="sm" />
+                          {t.name.split(" ")[0]}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {VIEW_SLOTS.map(time => (
+                    <tr key={time} className="border-b border-surface-100/60 dark:border-surface-800/40 last:border-0 hover:bg-surface-50/50 dark:hover:bg-surface-800/20 transition-colors">
+                      <td className="px-4 py-2 font-mono text-xs text-surface-400 align-top pt-3">{time}</td>
+                      {trainerColumns.map(trainer => {
+                        const appt = getApptForSlot(time, trainer.id);
+                        return (
+                          <td key={trainer.id} className="px-2 py-1.5 align-top">
+                            {appt ? (
+                              <AppointmentCard appt={appt} onUpdateStatus={updateStatus} updatingId={updatingId} compact />
+                            ) : (
+                              <button onClick={() => { setModalTime(time); setShowModal(true); }}
+                                className="w-full h-10 rounded-lg border-2 border-dashed border-surface-200/60 dark:border-surface-700/60 text-surface-300 dark:text-surface-600 hover:border-brand-300 dark:hover:border-brand-700 hover:text-brand-400 transition-all text-xs flex items-center justify-center gap-1">
+                                <Plus size={12} />
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              /* Single trainer or "all" as list */
+              <div>
+                {VIEW_SLOTS.map(time => {
+                  const appt = getApptForSlot(time);
+                  return (
+                    <div key={time} className="flex items-center gap-4 px-5 py-2.5 border-b border-surface-100/60 dark:border-surface-800/40 last:border-0 hover:bg-surface-50/50 dark:hover:bg-surface-800/20 transition-colors">
+                      <span className="text-xs font-mono text-surface-400 w-12 shrink-0">{time}</span>
+                      {appt ? (
+                        <AppointmentCard appt={appt} onUpdateStatus={updateStatus} updatingId={updatingId} />
+                      ) : (
+                        <button onClick={() => { setModalTime(time); setShowModal(true); }}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-surface-200/50 dark:border-surface-700/50 text-surface-300 dark:text-surface-600 hover:border-brand-300 dark:hover:border-brand-700 hover:text-brand-400 transition-all text-xs">
+                          <Plus size={13} /> Disponível — clique para agendar
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center py-3 rounded-xl border-2 border-dashed border-surface-200/40 text-xs text-surface-700/30 hover:border-brand-300/40 hover:text-brand-400 transition-all cursor-pointer">
-                      + Disponível
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Trainers availability */}
-      {trainers.length > 0 && (
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">Disponibilidade da Equipe</h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            {trainers.map(t => (
-              <div key={t.id} className="p-4 rounded-xl border border-surface-200/40">
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar initials={t.name.slice(0, 2).toUpperCase()} size="sm" />
-                  <div className="font-semibold text-sm text-surface-900">{t.name}</div>
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {["S","T","Q","Q","S","S","D"].map((d, i) => (
-                    <div key={i} className={`text-center py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${i < 6 ? "bg-brand-50 text-brand-600 border border-brand-200/30" : "bg-surface-50 text-surface-700/30"}`}>
-                      {d}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2 text-xs text-surface-700/40">06:00 — 20:00 • Intervalo 12:00-13:00</div>
-              </div>
-            ))}
-          </div>
+      {showModal && (
+        <BookingModal
+          onClose={() => setShowModal(false)}
+          onCreated={appt => { setAppointments(prev => [...prev, appt]); setShowModal(false); }}
+          trainers={trainers}
+          initialDate={dateStr}
+          initialTime={modalTime}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Appointment Card ──────────────────────────────────────────
+function AppointmentCard({ appt, onUpdateStatus, updatingId, compact = false }: {
+  appt: AppointmentData;
+  onUpdateStatus: (id: string, status: string) => void;
+  updatingId: string | null;
+  compact?: boolean;
+}) {
+  const isUpdating = updatingId === appt.id;
+  const studentName = appt.students?.name ?? "—";
+  const trainerName = appt.trainers?.name ?? "—";
+  const canConfirm = appt.status === "booked";
+  const canCheckin = appt.status === "confirmed" || appt.status === "booked";
+  const canCancel = !["cancelled", "completed", "no_show"].includes(appt.status);
+
+  if (compact) {
+    return (
+      <div className={`rounded-lg px-2.5 py-2 border ${appt.status === "cancelled" ? "opacity-50 border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800" : "border-brand-200/50 dark:border-brand-800/50 bg-brand-50/50 dark:bg-brand-950/20"}`}>
+        <div className="text-[11px] font-semibold text-surface-900 dark:text-white truncate">{studentName}</div>
+        <div className="flex items-center justify-between mt-1 gap-1">
+          <StatusBadge status={appt.status} />
+          {canCheckin && !isUpdating && (
+            <button onClick={() => onUpdateStatus(appt.id, "checked_in")} className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-200 transition-all">
+              <Check size={10} />
+            </button>
+          )}
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex-1 flex items-center gap-3 rounded-xl px-4 py-3 border transition-all ${appt.status === "cancelled" ? "opacity-50 border-surface-200/60 dark:border-surface-700/60 bg-surface-50 dark:bg-surface-800/30" : "border-brand-200/40 dark:border-brand-800/40 bg-brand-50/30 dark:bg-brand-950/10"}`}>
+      <Avatar name={studentName} size="sm" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold text-surface-900 dark:text-white">{studentName}</span>
+          <StatusBadge status={appt.status} />
+        </div>
+        <div className="text-xs text-surface-400 mt-0.5">
+          {appt.service_type} • {appt.duration}min • {trainerName}
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      {!isUpdating && canCancel && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          {canConfirm && (
+            <button onClick={() => onUpdateStatus(appt.id, "confirmed")}
+              title="Confirmar"
+              className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all border border-indigo-200/50 dark:border-indigo-800/50">
+              <Check size={14} />
+            </button>
+          )}
+          {canCheckin && (
+            <button onClick={() => onUpdateStatus(appt.id, "checked_in")}
+              title="Check-in"
+              className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all border border-emerald-200/50 dark:border-emerald-800/50">
+              <UserCheck size={14} />
+            </button>
+          )}
+          <button onClick={() => onUpdateStatus(appt.id, "cancelled")}
+            title="Cancelar"
+            className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-500 dark:text-red-400 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/40 transition-all border border-red-200/50 dark:border-red-800/50">
+            <XCircle size={14} />
+          </button>
+        </div>
+      )}
+      {isUpdating && (
+        <div className="w-6 h-6 border-2 border-brand-400/30 border-t-brand-500 rounded-full animate-spin shrink-0" />
       )}
     </div>
   );
@@ -414,7 +807,8 @@ function AlunosTab() {
 
   const filtered = students.filter(s => {
     if (filter !== "all" && s.status !== filter) return false;
-    if (search && !s.full_name.toLowerCase().includes(search.toLowerCase())) return false;
+    const nm = s.name ?? "";
+    if (search && !nm.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -434,13 +828,17 @@ function AlunosTab() {
         <KPI label="Inativos" value={counts.inactive.toString()} />
       </div>
 
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-4">
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar aluno..." className="flex-1 bg-surface-50 border border-surface-200/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-400 transition-all" />
+      <div className="card p-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-5">
+          <div className="relative flex-1 w-full">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar aluno..." className="input-base w-full pl-9" />
+          </div>
           <div className="flex gap-2">
             {(["all","active","overdue","inactive"] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${f === filter ? "bg-brand-500 text-white" : "bg-surface-50 text-surface-700/60 hover:bg-surface-100"}`}>
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${f === filter ? "bg-brand-500 text-white" : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"}`}>
                 {f === "all" ? "Todos" : f === "active" ? "Ativos" : f === "overdue" ? "Inadimpl." : "Inativos"}
               </button>
             ))}
@@ -450,24 +848,26 @@ function AlunosTab() {
         {loading ? (
           <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-surface-700/30 text-sm">
-            {search ? "Nenhum aluno encontrado" : "Nenhum aluno cadastrado ainda"}
+          <div className="text-center py-12 text-surface-400 dark:text-surface-600 text-sm">
+            <Users className="mx-auto mb-2 opacity-30" size={36} />
+            <p>{search ? "Nenhum aluno encontrado" : "Nenhum aluno cadastrado ainda"}</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {filtered.map(s => (
-              <div key={s.id} onClick={() => setSelected(s)} className="flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-surface-50 cursor-pointer transition-all border-b border-surface-100/60 last:border-0">
-                <Avatar initials={s.full_name.slice(0, 2).toUpperCase()} />
+              <div key={s.id} onClick={() => setSelected(s)}
+                className="flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-pointer transition-all border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                <Avatar name={s.name ?? "?"} />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-surface-900">{s.full_name}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-surface-900 dark:text-white">{s.name}</span>
                     <StatusBadge status={s.status} />
                   </div>
-                  <div className="text-xs text-surface-700/40">{s.plan_name ?? "—"} • {s.total_checkins} check-ins • Nível: {s.level}</div>
+                  <div className="text-xs text-surface-400 mt-0.5">{s.plan_name ?? "—"} • {s.total_checkins} check-ins • {s.level}</div>
                 </div>
-                <div className="text-right hidden md:block">
-                  <div className="text-sm font-bold text-brand-500">{s.coins} 🪙</div>
-                  <div className="text-xs text-surface-700/40">{s.monthly_checkins} este mês</div>
+                <div className="text-right hidden md:block shrink-0">
+                  <div className="text-sm font-bold text-brand-500 flex items-center gap-1 justify-end"><Coins size={13} />{s.coins}</div>
+                  <div className="text-xs text-surface-400">{s.monthly_checkins} este mês</div>
                 </div>
               </div>
             ))}
@@ -476,43 +876,54 @@ function AlunosTab() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-4 mb-6">
-              <Avatar initials={selected.full_name.slice(0, 2).toUpperCase()} size="lg" />
-              <div>
-                <h3 className="font-display font-bold text-xl text-surface-900">{selected.full_name}</h3>
-                <StatusBadge status={selected.status} />
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="card w-full max-w-md shadow-2xl dark:shadow-black/50" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-5">
+                <div className="flex items-center gap-4">
+                  <Avatar name={selected.name ?? "?"} size="lg" />
+                  <div>
+                    <h3 className="font-display font-bold text-xl text-surface-900 dark:text-white">{selected.name}</h3>
+                    <StatusBadge status={selected.status} />
+                  </div>
+                </div>
+                <button onClick={() => setSelected(null)} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700 transition-all">
+                  <X size={16} />
+                </button>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-surface-50 rounded-xl p-3 text-center">
-                <div className="text-2xl font-display font-black text-brand-500">{selected.coins}</div>
-                <div className="text-[10px] text-surface-700/40 uppercase">GymCoins</div>
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                {[
+                  { label: "GymCoins", value: selected.coins, icon: <Coins size={16} className="text-brand-500" /> },
+                  { label: "Check-ins", value: selected.total_checkins, icon: <CheckCircle2 size={16} className="text-emerald-500" /> },
+                  { label: "Este Mês", value: selected.monthly_checkins, icon: <TrendingUp size={16} className="text-indigo-500" /> },
+                ].map(stat => (
+                  <div key={stat.label} className="bg-surface-50 dark:bg-surface-800 rounded-xl p-3 text-center">
+                    <div className="flex justify-center mb-1">{stat.icon}</div>
+                    <div className="text-xl font-display font-black text-surface-900 dark:text-white">{stat.value}</div>
+                    <div className="text-[10px] text-surface-400 uppercase font-semibold tracking-wider">{stat.label}</div>
+                  </div>
+                ))}
               </div>
-              <div className="bg-surface-50 rounded-xl p-3 text-center">
-                <div className="text-2xl font-display font-black text-surface-900">{selected.total_checkins}</div>
-                <div className="text-[10px] text-surface-700/40 uppercase">Check-ins Total</div>
+              <div className="space-y-2 text-sm mb-5">
+                {[
+                  { icon: <Mail size={14} />, label: selected.email },
+                  ...(selected.phone ? [{ icon: <Phone size={14} />, label: selected.phone }] : []),
+                  { icon: <Dumbbell size={14} />, label: selected.plan_name ?? "Sem plano" },
+                  { icon: <Zap size={14} />, label: `Nível: ${selected.level}` },
+                  ...(selected.last_checkin ? [{ icon: <Clock size={14} />, label: `Último check-in: ${new Date(selected.last_checkin).toLocaleDateString("pt-BR")}` }] : []),
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2.5 text-surface-600 dark:text-surface-400">
+                    <span className="text-surface-400 dark:text-surface-500">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
+                ))}
               </div>
-              <div className="bg-surface-50 rounded-xl p-3 text-center">
-                <div className="text-2xl font-display font-black">{selected.level}</div>
-                <div className="text-[10px] text-surface-700/40 uppercase">Nível</div>
+              <div className="flex gap-2">
+                <button className="btn-primary flex-1 py-2.5 text-sm flex items-center justify-center gap-2">
+                  <MessageSquare size={15} /> Mensagem
+                </button>
+                <button onClick={() => setSelected(null)} className="btn-ghost flex-1 py-2.5 text-sm">Fechar</button>
               </div>
-              <div className="bg-surface-50 rounded-xl p-3 text-center">
-                <div className="text-2xl font-display font-black">{selected.monthly_checkins}</div>
-                <div className="text-[10px] text-surface-700/40 uppercase">Mês Atual</div>
-              </div>
-            </div>
-            <div className="space-y-2 text-sm text-surface-700/60 mb-6">
-              <div className="flex justify-between"><span>Email</span><span className="text-surface-900 truncate ml-4">{selected.email}</span></div>
-              {selected.phone && <div className="flex justify-between"><span>Telefone</span><span className="text-surface-900">{selected.phone}</span></div>}
-              <div className="flex justify-between"><span>Plano</span><span className="text-surface-900">{selected.plan_name ?? "—"}</span></div>
-              {selected.last_checkin && <div className="flex justify-between"><span>Último Check-in</span><span className="text-surface-900">{new Date(selected.last_checkin).toLocaleDateString("pt-BR")}</span></div>}
-              <div className="flex justify-between"><span>Membro desde</span><span className="text-surface-900">{new Date(selected.joined_at).toLocaleDateString("pt-BR")}</span></div>
-            </div>
-            <div className="flex gap-2">
-              <button className="flex-1 bg-brand-500 text-white font-semibold py-2.5 rounded-xl text-sm hover:bg-brand-600 transition-all">Enviar Mensagem</button>
-              <button onClick={() => setSelected(null)} className="flex-1 bg-surface-100 text-surface-700/60 font-semibold py-2.5 rounded-xl text-sm hover:bg-surface-200 transition-all">Fechar</button>
             </div>
           </div>
         </div>
@@ -532,16 +943,8 @@ function CoinsTab() {
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
-      supabase
-        .from("coin_transactions")
-        .select("*, profiles(full_name)")
-        .order("created_at", { ascending: false })
-        .limit(20),
-      supabase
-        .from("rewards")
-        .select("*")
-        .eq("is_active", true)
-        .order("coins_cost", { ascending: true }),
+      supabase.from("coin_transactions").select("*, profiles(full_name)").order("created_at", { ascending: false }).limit(20),
+      supabase.from("rewards").select("*").eq("is_active", true).order("coins_cost", { ascending: true }),
     ]).then(([txRes, rewardsRes]) => {
       setTransactions((txRes.data ?? []) as unknown as CoinTx[]);
       setRewards(rewardsRes.data ?? []);
@@ -554,30 +957,35 @@ function CoinsTab() {
   return (
     <div className="space-y-6 stagger">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="Coins Distribuídos" value={totalDistributed.toLocaleString()} />
+        <KPI label="Coins Distribuídos" value={totalDistributed.toLocaleString()} trend="+12%" />
         <KPI label="Coins Resgatados" value={totalRedeemed.toLocaleString()} />
         <KPI label="Transações" value={transactions.length.toString()} />
         <KPI label="Recompensas Ativas" value={rewards.length.toString()} />
       </div>
 
-      {/* Reward catalog */}
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <h3 className="font-display font-bold text-surface-900 mb-4">Catálogo de Recompensas</h3>
+      <div className="card p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white">Catálogo de Recompensas</h3>
+          <button className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5"><Plus size={13} /> Nova Recompensa</button>
+        </div>
         {loading ? (
-          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28" />)}
-          </div>
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
         ) : rewards.length === 0 ? (
-          <div className="text-center py-8 text-surface-700/30 text-sm">Nenhuma recompensa cadastrada</div>
+          <div className="text-center py-10 text-surface-400 dark:text-surface-600 text-sm">
+            <Coins className="mx-auto mb-2 opacity-30" size={32} />
+            <p>Nenhuma recompensa cadastrada</p>
+          </div>
         ) : (
           <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
             {rewards.map(r => (
-              <div key={r.id} className="text-center p-4 rounded-xl border border-surface-200/40 hover:border-brand-300/40 transition-all">
+              <div key={r.id} className="text-center p-4 rounded-xl border border-surface-200/40 dark:border-surface-700/40 hover:border-brand-300/40 dark:hover:border-brand-700/40 hover:shadow-sm transition-all bg-surface-50/50 dark:bg-surface-800/30">
                 <div className="text-4xl mb-2">{r.emoji ?? "🎁"}</div>
-                <div className="text-sm font-semibold text-surface-900">{r.name}</div>
-                <div className="text-brand-500 font-display font-bold mt-1">{r.coins_cost} 🪙</div>
+                <div className="text-sm font-semibold text-surface-900 dark:text-white">{r.name}</div>
+                <div className="flex items-center justify-center gap-1 text-brand-500 font-display font-bold mt-1">
+                  <Coins size={13} />{r.coins_cost}
+                </div>
                 {r.stock_quantity != null && (
-                  <div className="text-xs text-surface-700/40 mt-1">{r.stock_quantity} disponíveis</div>
+                  <div className="text-xs text-surface-400 mt-1">{r.stock_quantity} disponíveis</div>
                 )}
               </div>
             ))}
@@ -585,32 +993,33 @@ function CoinsTab() {
         )}
       </div>
 
-      {/* Config + Levels */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">Regras de Coins</h3>
-          <div className="space-y-3">
+        <div className="card p-6">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-4">Regras de Coins</h3>
+          <div className="space-y-1">
             {COIN_RULES.map(rule => (
-              <div key={rule.label} className="flex items-center justify-between py-2 border-b border-surface-100 last:border-0">
-                <span className="text-sm text-surface-700/60">{rule.label}</span>
-                <span className="font-display font-bold text-brand-500">{rule.value} 🪙</span>
+              <div key={rule.label} className="flex items-center justify-between py-3 border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                <span className="text-sm text-surface-600 dark:text-surface-400">{rule.label}</span>
+                <div className="flex items-center gap-1 font-display font-bold text-brand-500">
+                  <Coins size={14} />{rule.value}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">Níveis de Progressão</h3>
-          <div className="space-y-2">
+        <div className="card p-6">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-4">Níveis de Progressão</h3>
+          <div className="space-y-1">
             {LEVELS.map(l => (
-              <div key={l.name} className="flex items-center gap-3 py-2 border-b border-surface-100 last:border-0">
-                <span className="text-2xl">{l.icon}</span>
+              <div key={l.name} className="flex items-center gap-3 py-2.5 border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                <span className="text-xl w-7 text-center">{l.icon}</span>
                 <div className="flex-1">
                   <div className="text-sm font-semibold" style={{ color: l.color }}>{l.name}</div>
-                  <div className="text-xs text-surface-700/40">{l.minCheckins}+ check-ins</div>
+                  <div className="text-xs text-surface-400">{l.minCheckins}+ check-ins</div>
                 </div>
-                <div className="w-20 h-2 bg-surface-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ backgroundColor: l.color, width: `${Math.min(100, l.minCheckins / 3)}%` }} />
+                <div className="w-16 h-1.5 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ backgroundColor: l.color, width: `${Math.min(100, l.minCheckins / 2)}%` }} />
                 </div>
               </div>
             ))}
@@ -618,25 +1027,24 @@ function CoinsTab() {
         </div>
       </div>
 
-      {/* Recent Transactions */}
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <h3 className="font-display font-bold text-surface-900 mb-4">Transações Recentes</h3>
+      <div className="card p-6">
+        <h3 className="font-display font-bold text-surface-900 dark:text-white mb-4">Transações Recentes</h3>
         {loading ? (
           <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
         ) : transactions.length === 0 ? (
-          <div className="text-center py-8 text-surface-700/30 text-sm">Nenhuma transação ainda</div>
+          <div className="text-center py-8 text-surface-400 dark:text-surface-600 text-sm">Nenhuma transação ainda</div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-0.5">
             {transactions.map(ct => (
-              <div key={ct.id} className="flex items-center gap-3 py-2 border-b border-surface-100 last:border-0">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${ct.amount > 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"}`}>
+              <div key={ct.id} className="flex items-center gap-3 py-2.5 border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${ct.amount > 0 ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-950/40 text-red-500 dark:text-red-400"}`}>
                   {ct.amount > 0 ? "+" + ct.amount : ct.amount}
                 </div>
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-surface-900">{ct.profiles?.full_name ?? "—"}</div>
-                  <div className="text-xs text-surface-700/40">{ct.description}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-surface-900 dark:text-white">{ct.profiles?.full_name ?? "—"}</div>
+                  <div className="text-xs text-surface-400 truncate">{ct.description}</div>
                 </div>
-                <span className="text-xs text-surface-700/40">{new Date(ct.created_at).toLocaleDateString("pt-BR")}</span>
+                <span className="text-xs text-surface-400 shrink-0">{new Date(ct.created_at).toLocaleDateString("pt-BR")}</span>
               </div>
             ))}
           </div>
@@ -663,72 +1071,71 @@ function FinanceiroTab({ dashboard }: { dashboard: DashboardData | null }) {
 
   const mrr = (dashboard?.mrr ?? 0) / 100;
   const mrrGrowth = dashboard?.mrrGrowth ?? 0;
-  const pendingRevenue = (paymentStats?.pendingRevenue ?? 0) / 100;
-  const overdueRevenue = (paymentStats?.overdueRevenue ?? 0) / 100;
-  const paidThisMonth = (paymentStats?.paidThisMonth ?? 0) / 100;
+  const paid = (paymentStats?.paid ?? 0);
+  const pending = (paymentStats?.pending ?? 0);
+  const overdue = (paymentStats?.overdue ?? 0);
 
   return (
     <div className="space-y-6 stagger">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="MRR" value={`R$ ${(mrr / 1000).toFixed(1)}K`} trend={`+${mrrGrowth.toFixed(1)}%`} />
-        <KPI label="Arrecadado (Mês)" value={`R$ ${(paidThisMonth / 1000).toFixed(1)}K`} />
-        <KPI label="Pendente" value={`R$ ${(pendingRevenue / 1000).toFixed(1)}K`} sub={`${paymentStats?.pendingCount ?? 0} faturas`} />
-        <KPI label="Inadimplência" value={`R$ ${(overdueRevenue / 1000).toFixed(1)}K`} sub={`${paymentStats?.overdueCount ?? 0} atrasadas`} />
+        <KPI label="MRR" value={`R$ ${(mrr / 1000).toFixed(1)}K`} trend={`${mrrGrowth >= 0 ? "+" : ""}${mrrGrowth.toFixed(1)}%`} />
+        <KPI label="Arrecadado" value={`R$ ${(paid / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`} />
+        <KPI label="Pendente" value={`R$ ${(pending / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`} />
+        <KPI label="Inadimplência" value={`R$ ${(overdue / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">Resumo Financeiro</h3>
+        <div className="card p-6">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-4">Resumo do Mês</h3>
           {loading ? (
-            <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+            <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-green-50/50 border border-green-200/30">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/40 dark:border-emerald-800/40">
                 <div>
-                  <div className="text-sm font-semibold text-green-700">Receita Paga (Mês)</div>
-                  <div className="text-xs text-green-600/60">{paymentStats?.paidCount ?? 0} pagamentos confirmados</div>
+                  <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Pagamentos Recebidos</div>
+                  <div className="text-xs text-emerald-600/60 dark:text-emerald-500/60">Este mês</div>
                 </div>
-                <div className="font-display font-black text-xl text-green-600">R$ {paidThisMonth.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+                <div className="font-display font-black text-xl text-emerald-600 dark:text-emerald-400">
+                  R$ {(paid / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </div>
               </div>
-              <div className="flex items-center justify-between p-4 rounded-xl bg-amber-50/50 border border-amber-200/30">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/40 dark:border-amber-800/40">
                 <div>
-                  <div className="text-sm font-semibold text-amber-700">Pagamentos Pendentes</div>
-                  <div className="text-xs text-amber-600/60">{paymentStats?.pendingCount ?? 0} faturas aguardando</div>
+                  <div className="text-sm font-semibold text-amber-700 dark:text-amber-400">Aguardando Pagamento</div>
+                  <div className="text-xs text-amber-600/60 dark:text-amber-500/60">Em aberto</div>
                 </div>
-                <div className="font-display font-black text-xl text-amber-600">R$ {pendingRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+                <div className="font-display font-black text-xl text-amber-600 dark:text-amber-400">
+                  R$ {(pending / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </div>
               </div>
-              <div className="flex items-center justify-between p-4 rounded-xl bg-red-50/50 border border-red-200/30">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-red-50/70 dark:bg-red-950/30 border border-red-200/40 dark:border-red-800/40">
                 <div>
-                  <div className="text-sm font-semibold text-red-600">Pagamentos Atrasados</div>
-                  <div className="text-xs text-red-500/60">{paymentStats?.overdueCount ?? 0} faturas em atraso</div>
+                  <div className="text-sm font-semibold text-red-600 dark:text-red-400">Inadimplência</div>
+                  <div className="text-xs text-red-500/60 dark:text-red-500/60">Faturas em atraso</div>
                 </div>
-                <div className="font-display font-black text-xl text-red-500">R$ {overdueRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+                <div className="font-display font-black text-xl text-red-500 dark:text-red-400">
+                  R$ {(overdue / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-          <h3 className="font-display font-bold text-surface-900 mb-4">Métricas SaaS</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-3 border-b border-surface-100">
-              <span className="text-sm text-surface-700/60">MRR Atual</span>
-              <span className="font-display font-bold text-surface-900">R$ {mrr.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex items-center justify-between py-3 border-b border-surface-100">
-              <span className="text-sm text-surface-700/60">Crescimento MoM</span>
-              <span className={`font-display font-bold ${mrrGrowth >= 0 ? "text-green-600" : "text-red-500"}`}>{mrrGrowth >= 0 ? "+" : ""}{mrrGrowth.toFixed(1)}%</span>
-            </div>
-            <div className="flex items-center justify-between py-3 border-b border-surface-100">
-              <span className="text-sm text-surface-700/60">Alunos Ativos</span>
-              <span className="font-display font-bold text-surface-900">{dashboard?.activeStudents ?? 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-3">
-              <span className="text-sm text-surface-700/60">Ticket Médio</span>
-              <span className="font-display font-bold text-surface-900">
-                R$ {dashboard?.activeStudents ? (mrr / dashboard.activeStudents).toFixed(2) : "—"}
-              </span>
-            </div>
+        <div className="card p-6">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-4">Métricas SaaS</h3>
+          <div className="space-y-1">
+            {[
+              { label: "MRR Atual", value: `R$ ${mrr.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` },
+              { label: "Crescimento MoM", value: `${mrrGrowth >= 0 ? "+" : ""}${mrrGrowth.toFixed(1)}%`, cls: mrrGrowth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500" },
+              { label: "Alunos Ativos", value: (dashboard?.activeStudents ?? 0).toString() },
+              { label: "Ticket Médio", value: dashboard?.activeStudents ? `R$ ${(mrr / dashboard.activeStudents).toFixed(2)}` : "—" },
+            ].map(row => (
+              <div key={row.label} className="flex items-center justify-between py-3 border-b border-surface-100/60 dark:border-surface-800/60 last:border-0">
+                <span className="text-sm text-surface-500 dark:text-surface-400">{row.label}</span>
+                <span className={`font-display font-bold text-surface-900 dark:text-white ${row.cls ?? ""}`}>{row.value}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -745,12 +1152,12 @@ function WhatsAppTab() {
   const [result, setResult] = useState<string | null>(null);
 
   const templates = [
-    { id: "pre_appointment", name: "Lembrete de Agendamento", trigger: "1h antes da aula", active: true, preview: "Olá {name}! Sua aula começa em 1 hora. Confirme sua presença 💪" },
+    { id: "pre_appointment", name: "Lembrete de Aula", trigger: "1h antes", active: true, preview: "Olá {name}! Sua aula começa em 1 hora. Confirme sua presença 💪" },
     { id: "post_checkin", name: "Confirmação de Check-in", trigger: "Após check-in", active: true, preview: "Check-in confirmado! Você ganhou {coins} GymCoins 🪙 Total: {total}" },
     { id: "level_up", name: "Subiu de Nível", trigger: "Ao subir de nível", active: true, preview: "🎉 Parabéns! Você subiu para o nível {level}!" },
     { id: "reactivation", name: "Reativação", trigger: "7 dias sem visita", active: true, preview: "Saudades! Faz {days} dias que você não nos visita. Que tal voltar hoje? 💪" },
-    { id: "payment_due", name: "Aviso de Cobrança", trigger: "3 dias antes do vencimento", active: true, preview: "Lembrete: Sua mensalidade vence em {days} dias. Evite a inadimplência!" },
-    { id: "weekly_ranking", name: "Ranking Semanal", trigger: "Toda segunda-feira", active: false, preview: "📊 Ranking da semana: Você está em #{position} com {checkins} check-ins!" },
+    { id: "payment_due", name: "Aviso de Cobrança", trigger: "3 dias antes", active: true, preview: "Lembrete: Sua mensalidade vence em {days} dias. Evite a inadimplência!" },
+    { id: "weekly_ranking", name: "Ranking Semanal", trigger: "Segunda-feira", active: false, preview: "📊 Ranking da semana: Você está em #{position} com {checkins} check-ins!" },
   ];
 
   async function sendBroadcast() {
@@ -765,59 +1172,63 @@ function WhatsAppTab() {
       const data = await res.json();
       setResult(res.ok ? `✅ Enviado para ${data.sent ?? "?"} alunos` : `❌ Erro: ${data.error}`);
       setMessage("");
-    } catch {
-      setResult("❌ Falha ao enviar");
-    } finally {
-      setSending(false);
-    }
+    } catch { setResult("❌ Falha ao enviar"); }
+    finally { setSending(false); }
   }
 
   return (
     <div className="space-y-6 stagger">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPI label="Templates Ativos" value={templates.filter(t => t.active).length.toString()} />
-        <KPI label="Taxa de Entrega" value="96%" />
+        <KPI label="Taxa de Entrega" value="96%" trend="+2%" />
         <KPI label="Taxa de Leitura" value="87%" />
-        <KPI label="Taxa de Clique" value="31%" />
+        <KPI label="Taxa de Clique" value="31%" trend="+5%" />
       </div>
 
-      {/* Send broadcast */}
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <h3 className="font-display font-bold text-surface-900 mb-4">Enviar Mensagem em Massa</h3>
+      <div className="card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-950/40 flex items-center justify-center">
+            <MessageSquare size={18} className="text-green-600 dark:text-green-400" />
+          </div>
+          <div>
+            <h3 className="font-display font-bold text-surface-900 dark:text-white">Enviar Mensagem em Massa</h3>
+            <p className="text-xs text-surface-400">Para todos os alunos ativos</p>
+          </div>
+        </div>
         <div className="flex gap-3">
           <textarea value={message} onChange={e => setMessage(e.target.value)}
-            placeholder="Digite a mensagem para enviar a todos os alunos ativos..."
-            className="flex-1 bg-surface-50 border border-surface-200/60 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-400 transition-all resize-none h-20" />
+            placeholder="Digite a mensagem..."
+            className="input-base flex-1 resize-none h-20" />
           <button onClick={sendBroadcast} disabled={sending || !message.trim()}
-            className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-semibold px-6 rounded-xl text-sm transition-all flex items-center gap-2">
-            {sending ? "..." : "📤 Enviar"}
+            className="btn-primary px-5 flex items-center gap-2 text-sm">
+            {sending ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Bell size={15} />}
+            {sending ? "..." : "Enviar"}
           </button>
         </div>
-        {result && <p className="mt-2 text-sm text-surface-700/60">{result}</p>}
+        {result && <p className="mt-2 text-sm text-surface-500">{result}</p>}
       </div>
 
-      {/* Templates */}
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <h3 className="font-display font-bold text-surface-900 mb-4">Templates de Notificação</h3>
+      <div className="card p-6">
+        <h3 className="font-display font-bold text-surface-900 dark:text-white mb-4">Templates de Notificação</h3>
         <div className="space-y-3">
           {templates.map(n => (
-            <div key={n.id} className="flex items-start gap-4 p-4 rounded-xl border border-surface-200/40 hover:border-brand-200/40 transition-all">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 ${n.active ? "bg-green-50" : "bg-surface-100"}`}>
-                {n.active ? "✅" : "⏸️"}
+            <div key={n.id} className="flex items-start gap-4 p-4 rounded-xl border border-surface-200/40 dark:border-surface-700/40 hover:border-brand-200/40 dark:hover:border-brand-700/40 transition-all">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${n.active ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-surface-100 dark:bg-surface-800"}`}>
+                {n.active ? <CheckCircle2 size={18} className="text-emerald-500" /> : <Clock size={18} className="text-surface-400" />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-semibold text-surface-900">{n.name}</span>
-                  <span className="text-[10px] bg-brand-50 text-brand-600 px-2 py-0.5 rounded-full">WhatsApp</span>
+                  <span className="text-sm font-semibold text-surface-900 dark:text-white">{n.name}</span>
+                  <span className="text-[10px] bg-brand-50 dark:bg-brand-950/40 text-brand-600 dark:text-brand-400 border border-brand-200/50 dark:border-brand-800/50 px-2 py-0.5 rounded-full">WhatsApp</span>
                 </div>
-                <div className="text-xs text-surface-700/40 mb-2">Disparo: {n.trigger}</div>
-                <div className="bg-[#dcf8c6] rounded-xl rounded-tl-none px-4 py-2 text-sm text-surface-800 max-w-md">
+                <div className="text-xs text-surface-400 mb-2">Disparo: {n.trigger}</div>
+                <div className="bg-[#dcf8c6] dark:bg-[#1a3a25] rounded-xl rounded-tl-none px-4 py-2 text-sm text-surface-800 dark:text-emerald-200 max-w-sm">
                   {n.preview}
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input type="checkbox" defaultChecked={n.active} className="sr-only peer" />
-                <div className="w-11 h-6 bg-surface-200 peer-focus:ring-2 peer-focus:ring-brand-400/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                <div className="w-11 h-6 bg-surface-200 dark:bg-surface-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
               </label>
             </div>
           ))}
@@ -832,120 +1243,93 @@ function WhatsAppTab() {
 // ══════════════════════════════════════════════════════════════
 function ConfigTab({ studio, onStudioUpdate }: { studio: StudioData | null; onStudioUpdate: (s: StudioData) => void }) {
   const [form, setForm] = useState({
-    name: studio?.name ?? "",
-    owner_name: studio?.owner_name ?? "",
-    email: studio?.email ?? "",
-    address: studio?.address ?? "",
+    name: studio?.name ?? "", owner_name: studio?.owner_name ?? "",
+    email: studio?.email ?? "", address: studio?.address ?? "",
     establishment_type: studio?.establishment_type ?? "studio",
   });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (studio) {
-      setForm({
-        name: studio.name,
-        owner_name: studio.owner_name,
-        email: studio.email,
-        address: studio.address ?? "",
-        establishment_type: studio.establishment_type,
-      });
-    }
+    if (studio) setForm({ name: studio.name, owner_name: studio.owner_name, email: studio.email, address: studio.address ?? "", establishment_type: studio.establishment_type });
   }, [studio]);
 
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch("/api/studio", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        onStudioUpdate(updated);
-        setSaveMsg("✅ Alterações salvas!");
-      } else {
-        setSaveMsg("❌ Erro ao salvar");
-      }
-    } catch {
-      setSaveMsg("❌ Erro ao salvar");
-    } finally {
-      setSaving(false);
-      setTimeout(() => setSaveMsg(null), 3000);
-    }
+      const res = await fetch("/api/studio", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (res.ok) { onStudioUpdate(await res.json()); setSaveMsg("✅ Alterações salvas!"); }
+      else setSaveMsg("❌ Erro ao salvar");
+    } catch { setSaveMsg("❌ Erro ao salvar"); }
+    finally { setSaving(false); setTimeout(() => setSaveMsg(null), 3000); }
   }
+
+  const inputCls = "input-base w-full";
+  const labelCls = "text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5";
 
   return (
     <div className="space-y-6 stagger">
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <h3 className="font-display font-bold text-surface-900 mb-4">Perfil do Estabelecimento</h3>
+      <div className="card p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/40 flex items-center justify-center">
+            <Settings size={18} className="text-brand-500" />
+          </div>
+          <h3 className="font-display font-bold text-surface-900 dark:text-white">Perfil do Estabelecimento</h3>
+        </div>
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <div>
-              <label className="text-xs text-surface-700/50 uppercase tracking-wider font-medium block mb-1">Nome</label>
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full bg-surface-50 border border-surface-200/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-400" />
-            </div>
-            <div>
-              <label className="text-xs text-surface-700/50 uppercase tracking-wider font-medium block mb-1">Responsável</label>
-              <input value={form.owner_name} onChange={e => setForm(f => ({ ...f, owner_name: e.target.value }))}
-                className="w-full bg-surface-50 border border-surface-200/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-400" />
-            </div>
-            <div>
-              <label className="text-xs text-surface-700/50 uppercase tracking-wider font-medium block mb-1">Email</label>
-              <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full bg-surface-50 border border-surface-200/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-400" />
-            </div>
-            <div>
-              <label className="text-xs text-surface-700/50 uppercase tracking-wider font-medium block mb-1">Endereço</label>
-              <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
-                className="w-full bg-surface-50 border border-surface-200/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-400" />
-            </div>
+            <div><label className={labelCls}>Nome do Estabelecimento</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
+            <div><label className={labelCls}>Responsável</label><input value={form.owner_name} onChange={e => setForm(f => ({ ...f, owner_name: e.target.value }))} className={inputCls} /></div>
+            <div><label className={labelCls}>Email</label><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputCls} /></div>
+            <div><label className={labelCls}>Endereço</label><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Rua, número, bairro..." className={inputCls} /></div>
           </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-surface-700/50 uppercase tracking-wider font-medium block mb-2">Tipo de Estabelecimento</label>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(ESTABLISHMENT_TYPES).map(([key, val]) => (
-                  <button key={key} onClick={() => setForm(f => ({ ...f, establishment_type: key }))}
-                    className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium transition-all border ${form.establishment_type === key ? "bg-brand-50 border-brand-300 text-brand-700" : "bg-surface-50 border-surface-200/40 text-surface-700/60 hover:bg-surface-100"}`}>
-                    <span className="text-lg">{val.icon}</span>
-                    {val.label}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <label className={labelCls}>Tipo de Estabelecimento</label>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(ESTABLISHMENT_TYPES).map(([key, val]) => (
+                <button key={key} onClick={() => setForm(f => ({ ...f, establishment_type: key }))}
+                  className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium transition-all border ${form.establishment_type === key ? "bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-400" : "bg-surface-50 dark:bg-surface-800 border-surface-200/40 dark:border-surface-700/40 text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700"}`}>
+                  <span className="text-lg">{val.icon}</span>{val.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-4 mt-6">
-          <button onClick={handleSave} disabled={saving}
-            className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold py-3 px-8 rounded-xl text-sm transition-all shadow-lg shadow-brand-500/20">
+          <button onClick={handleSave} disabled={saving} className="btn-primary py-3 px-8 text-sm flex items-center gap-2">
+            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check size={15} />}
             {saving ? "Salvando..." : "Salvar Alterações"}
           </button>
-          {saveMsg && <span className="text-sm text-surface-700/60">{saveMsg}</span>}
+          {saveMsg && <span className="text-sm text-surface-400">{saveMsg}</span>}
         </div>
       </div>
 
-      {/* Billing */}
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <h3 className="font-display font-bold text-surface-900 mb-4">Assinatura</h3>
-        <div className="flex items-center justify-between p-4 rounded-xl bg-brand-50/50 border border-brand-200/30 mb-4">
-          <div>
-            <div className="font-semibold text-surface-900">Plano {studio?.plan ?? "—"}</div>
-            <div className="text-xs text-surface-700/40 mt-1">Gerencie sua assinatura no portal de faturamento</div>
+      <div className="card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/40 flex items-center justify-center">
+            <CreditCard size={18} className="text-brand-500" />
           </div>
-          <button
-            onClick={() => fetch("/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "portal" }) }).then(r => r.json()).then(d => d.url && window.open(d.url, "_blank"))}
-            className="bg-brand-500 text-white font-semibold py-2 px-4 rounded-xl text-sm hover:bg-brand-600 transition-all">
-            Gerenciar Assinatura →
+          <h3 className="font-display font-bold text-surface-900 dark:text-white">Assinatura</h3>
+        </div>
+        <div className="flex items-center justify-between p-4 rounded-xl bg-brand-50/50 dark:bg-brand-950/20 border border-brand-200/30 dark:border-brand-800/30">
+          <div>
+            <div className="font-semibold text-surface-900 dark:text-white">Plano {studio?.plan ?? "—"}</div>
+            <div className="text-xs text-surface-400 mt-0.5">Gerencie no portal de faturamento</div>
+          </div>
+          <button onClick={() => fetch("/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "portal" }) }).then(r => r.json()).then(d => d.url && window.open(d.url, "_blank"))}
+            className="btn-primary py-2 px-4 text-sm">
+            Gerenciar →
           </button>
         </div>
       </div>
 
-      {/* Integrations */}
-      <div className="bg-white rounded-2xl p-6 border border-surface-200/60">
-        <h3 className="font-display font-bold text-surface-900 mb-4">Integrações</h3>
+      <div className="card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/40 flex items-center justify-center">
+            <Zap size={18} className="text-brand-500" />
+          </div>
+          <h3 className="font-display font-bold text-surface-900 dark:text-white">Integrações</h3>
+        </div>
         <div className="grid md:grid-cols-3 gap-4">
           {[
             { name: "Wellhub (Gympass)", status: "Disponível", color: "blue", icon: "🏋️" },
@@ -955,11 +1339,11 @@ function ConfigTab({ studio, onStudioUpdate }: { studio: StudioData | null; onSt
             { name: "PIX Automático", status: "Disponível", color: "blue", icon: "💳" },
             { name: "Google Calendar", status: "Disponível", color: "blue", icon: "📅" },
           ].map(int => (
-            <div key={int.name} className="flex items-center gap-3 p-4 rounded-xl border border-surface-200/40">
+            <div key={int.name} className="flex items-center gap-3 p-4 rounded-xl border border-surface-200/40 dark:border-surface-700/40 hover:border-brand-200/40 dark:hover:border-brand-700/40 transition-all">
               <div className="text-2xl">{int.icon}</div>
               <div className="flex-1">
-                <div className="text-sm font-semibold text-surface-900">{int.name}</div>
-                <span className={`text-[10px] font-medium ${int.color === "green" ? "text-green-600" : int.color === "blue" ? "text-blue-600" : "text-amber-600"}`}>
+                <div className="text-sm font-semibold text-surface-900 dark:text-white">{int.name}</div>
+                <span className={`text-[10px] font-semibold ${int.color === "green" ? "text-emerald-500" : int.color === "blue" ? "text-blue-500" : "text-amber-500"}`}>
                   ● {int.status}
                 </span>
               </div>
@@ -968,24 +1352,19 @@ function ConfigTab({ studio, onStudioUpdate }: { studio: StudioData | null; onSt
         </div>
       </div>
 
-      {/* Quick Links */}
       <div className="grid md:grid-cols-2 gap-4">
-        <Link href="/app" className="bg-white rounded-2xl p-6 border border-surface-200/60 hover:border-brand-300/40 transition-all group">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>
-            <div>
-              <div className="font-display font-bold text-surface-900">App do Aluno</div>
-              <div className="text-xs text-surface-700/40">Ver como seus alunos veem</div>
-            </div>
+        <Link href="/app" className="card p-5 hover:border-brand-300/40 dark:hover:border-brand-700/40 transition-all group flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-brand-50 dark:bg-brand-950/40 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>
+          <div>
+            <div className="font-display font-bold text-surface-900 dark:text-white">App do Aluno</div>
+            <div className="text-xs text-surface-400">Ver como seus alunos veem</div>
           </div>
         </Link>
-        <Link href="/tv" className="bg-white rounded-2xl p-6 border border-surface-200/60 hover:border-brand-300/40 transition-all group">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📺</div>
-            <div>
-              <div className="font-display font-bold text-surface-900">TV Display</div>
-              <div className="text-xs text-surface-700/40">Ranking ao vivo no studio</div>
-            </div>
+        <Link href="/tv" className="card p-5 hover:border-brand-300/40 dark:hover:border-brand-700/40 transition-all group flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-brand-50 dark:bg-brand-950/40 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📺</div>
+          <div>
+            <div className="font-display font-bold text-surface-900 dark:text-white">TV Display</div>
+            <div className="text-xs text-surface-400">Ranking ao vivo no studio</div>
           </div>
         </Link>
       </div>
@@ -1003,6 +1382,7 @@ export default function PainelPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [trainers, setTrainers] = useState<TrainerData[]>([]);
   const [loadingGlobal, setLoadingGlobal] = useState(true);
+  const { dark, toggle: toggleTheme } = useTheme();
 
   useEffect(() => {
     Promise.all([
@@ -1011,108 +1391,137 @@ export default function PainelPage() {
       fetch("/api/trainers").then(r => r.ok ? r.json() : []),
     ]).then(([studioData, dashData, trainersData]) => {
       setStudio(studioData);
-      setDashboard(dashData);
+      setDashboard(dashData?.kpis ? {
+        totalStudents: dashData.kpis.totalStudents ?? 0,
+        activeStudents: dashData.kpis.activeStudents ?? 0,
+        newThisMonth: 0,
+        mrr: dashData.kpis.mrr ?? 0,
+        mrrGrowth: dashData.kpis.mrrGrowth ?? 0,
+        churnRate: 0,
+        todayCheckins: dashData.kpis.todayCheckins ?? 0,
+        todayAppointments: dashData.kpis.todayAppointments ?? 0,
+        recentCheckins: (dashData.recentCheckins ?? []).map((c: any) => ({
+          student_name: c.students?.name ?? "—",
+          time: new Date(c.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+          coins_earned: c.students?.coins ?? 10,
+        })),
+        rankingTop5: (dashData.rankingTop5 ?? []).map((r: any, i: number) => ({
+          rank: i + 1,
+          student_name: r.students?.name ?? "—",
+          checkins: r.checkins ?? 0,
+          coins: r.coins_earned ?? 0,
+        })),
+      } : null);
       setTrainers(Array.isArray(trainersData) ? trainersData : []);
     }).catch(() => {}).finally(() => setLoadingGlobal(false));
   }, []);
 
-  const today = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const today = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+
+  const studioInitials = studio?.name?.trim().split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase() ?? "G";
+  const estType = ESTABLISHMENT_TYPES[studio?.establishment_type ?? "studio"];
 
   const TabContent = useCallback(() => {
     switch (activeTab) {
-      case "overview": return <OverviewTab dashboard={dashboard} trainers={trainers} loading={loadingGlobal} />;
-      case "agenda": return <AgendaTab trainers={trainers} />;
-      case "alunos": return <AlunosTab />;
-      case "coins": return <CoinsTab />;
+      case "overview":   return <OverviewTab dashboard={dashboard} trainers={trainers} loading={loadingGlobal} />;
+      case "agenda":     return <AgendaTab trainers={trainers} />;
+      case "alunos":     return <AlunosTab />;
+      case "coins":      return <CoinsTab />;
       case "financeiro": return <FinanceiroTab dashboard={dashboard} />;
-      case "whatsapp": return <WhatsAppTab />;
-      case "config": return <ConfigTab studio={studio} onStudioUpdate={setStudio} />;
+      case "whatsapp":   return <WhatsAppTab />;
+      case "config":     return <ConfigTab studio={studio} onStudioUpdate={setStudio} />;
     }
   }, [activeTab, dashboard, trainers, loadingGlobal, studio]);
 
-  const studioInitials = studio?.name?.slice(0, 2).toUpperCase() ?? "G";
-  const estType = ESTABLISHMENT_TYPES[studio?.establishment_type ?? "studio"];
-
   return (
-    <div className="min-h-screen bg-surface-50 flex">
+    <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex transition-colors">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-surface-950 text-white transform transition-transform duration-300 lg:translate-x-0 lg:static ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="p-6">
-          <Link href="/" className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center font-display font-black text-lg">G</div>
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-surface-950 text-white transform transition-transform duration-300 lg:translate-x-0 lg:static border-r border-white/5 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="p-5 pb-4">
+          <Link href="/" className="flex items-center gap-3 mb-0.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center font-display font-black text-base shadow-lg shadow-brand-600/40">G</div>
             <div>
-              <div className="font-display font-bold text-base tracking-tight">GymFlow</div>
-              <div className="text-[10px] text-white/40">& Coins</div>
+              <div className="font-display font-bold text-sm tracking-tight">GymFlow</div>
+              <div className="text-[10px] text-white/30 tracking-widest uppercase">& Coins</div>
             </div>
           </Link>
         </div>
 
-        <div className="px-6 py-4 border-t border-white/5">
+        <div className="px-4 py-3 mx-3 rounded-xl bg-white/5 mb-2">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-500/20 flex items-center justify-center font-display font-bold text-brand-400">{studioInitials}</div>
-            <div>
-              <div className="text-sm font-semibold">{studio?.name ?? "Carregando..."}</div>
-              <div className="text-[10px] text-white/40">Plano {studio?.plan ?? "—"} • {estType?.label ?? "Studio"}</div>
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500/30 to-brand-700/30 flex items-center justify-center font-display font-bold text-sm text-brand-300">{studioInitials}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">{studio?.name ?? "Carregando..."}</div>
+              <div className="text-[10px] text-white/30">{estType?.label ?? "Studio"} • {studio?.plan ?? "—"}</div>
             </div>
           </div>
         </div>
 
-        <nav className="px-3 py-4 space-y-1 border-t border-white/5">
+        <nav className="px-3 py-2 space-y-0.5">
           {TABS.map(t => (
             <button key={t.id} onClick={() => { setActiveTab(t.id); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === t.id ? "bg-brand-500/15 text-brand-400" : "text-white/40 hover:text-white/70 hover:bg-white/5"}`}>
-              {t.icon}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === t.id ? "bg-brand-500/20 text-brand-300 shadow-sm" : "text-white/40 hover:text-white/70 hover:bg-white/5"}`}>
+              <span className={activeTab === t.id ? "text-brand-400" : ""}>{t.icon}</span>
               {t.label}
+              {activeTab === t.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
             </button>
           ))}
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/5 space-y-2">
           <div className="flex items-center gap-2">
-            <Link href="/tv" className="flex-1 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white py-2 rounded-xl text-xs font-medium transition-all">
-              {Icons.tv} TV Display
+            <Link href="/tv" className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/70 py-2 rounded-xl text-xs font-medium transition-all">
+              <Monitor size={14} /> TV
             </Link>
-            <Link href="/app" className="flex-1 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white py-2 rounded-xl text-xs font-medium transition-all">
-              📱 App Aluno
+            <Link href="/app" className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/70 py-2 rounded-xl text-xs font-medium transition-all">
+              📱 App
             </Link>
           </div>
           <form action="/api/auth/signout" method="POST">
             <button type="submit" className="w-full flex items-center justify-center gap-2 bg-white/3 hover:bg-red-500/10 text-white/20 hover:text-red-400 py-2 rounded-xl text-xs font-medium transition-all">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              Sair
+              <LogOut size={14} /> Sair
             </button>
           </form>
         </div>
       </aside>
 
-      {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      <main className="flex-1 min-w-0">
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-surface-200/60 px-6 py-4">
+      <main className="flex-1 min-w-0 flex flex-col">
+        {/* Header */}
+        <header className="sticky top-0 z-20 bg-white/80 dark:bg-surface-950/80 backdrop-blur-xl border-b border-surface-200/60 dark:border-surface-800/60 px-5 py-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-surface-700/60 hover:text-surface-900 transition">
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-surface-400 hover:text-surface-900 dark:hover:text-white transition">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
               </button>
               <div>
-                <h1 className="font-display font-bold text-xl text-surface-900">{TABS.find(t => t.id === activeTab)?.label}</h1>
-                <p className="text-xs text-surface-700/40 capitalize">{today}</p>
+                <h1 className="font-display font-bold text-lg text-surface-900 dark:text-white">{TABS.find(t => t.id === activeTab)?.label}</h1>
+                <p className="text-xs text-surface-400 capitalize hidden sm:block">{today}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {dashboard && (
-                <div className="hidden md:flex items-center gap-2 bg-brand-50 px-4 py-2 rounded-full">
-                  <span className="text-lg">🪙</span>
-                  <span className="font-display font-bold text-brand-600">{dashboard.totalStudents}</span>
-                  <span className="text-xs text-brand-400">alunos</span>
+                <div className="hidden md:flex items-center gap-1.5 bg-brand-50 dark:bg-brand-950/40 border border-brand-200/40 dark:border-brand-800/40 px-3.5 py-1.5 rounded-full">
+                  <Users size={13} className="text-brand-500" />
+                  <span className="font-display font-bold text-brand-600 dark:text-brand-400 text-sm">{dashboard.activeStudents}</span>
+                  <span className="text-xs text-brand-400/70 dark:text-brand-500">ativos</span>
                 </div>
               )}
-              <Avatar initials={studioInitials} size="sm" />
+              {/* Theme toggle */}
+              <button onClick={toggleTheme}
+                className="w-9 h-9 rounded-xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-500 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700 transition-all"
+                title={dark ? "Modo claro" : "Modo escuro"}>
+                {dark ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+              <Avatar name={studio?.name ?? "G"} size="sm" />
             </div>
           </div>
         </header>
 
-        <div className="p-6 max-w-7xl">
+        <div className="flex-1 p-5 max-w-7xl w-full mx-auto">
           <TabContent />
         </div>
       </main>
