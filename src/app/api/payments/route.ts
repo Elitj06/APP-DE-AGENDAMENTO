@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
 const markPaidSchema = z.object({
   paymentId: z.string().uuid(),
-  method: z.enum(['credit_card', 'pix', 'boleto', 'debit_card']).default('pix'),
+  method: z.enum(['credit_card', 'boleto', 'debit_card']).default('credit_card'),
 })
 
 export async function PATCH(req: NextRequest) {
@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('student_payments')
-    .update({ status: 'paid', paid_at: new Date().toISOString(), method: body.method })
+    .update({ status: 'paid', paid_at: new Date().toISOString(), payment_method: body.method })
     .eq('id', body.paymentId)
     .eq('studio_id', profile!.studio_id!)
     .select()

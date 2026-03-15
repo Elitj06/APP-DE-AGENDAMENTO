@@ -8,7 +8,12 @@ import {
   X, Check, UserCheck, XCircle, Search, Coins, Trophy, TrendingUp,
   Clock, Dumbbell, Phone, Mail, MapPin, Zap, Bell, Shield, CreditCard,
   ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, Ban,
+  FileText, UserPlus,
 } from "lucide-react";
+import {
+  BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid,
+} from "recharts";
 
 // ── Types ────────────────────────────────────────────────────
 interface StudioData {
@@ -95,11 +100,12 @@ const TIME_SLOTS = [
   "18:00","18:30","19:00","19:30","20:00","20:30","21:00",
 ];
 
-type Tab = "overview" | "agenda" | "alunos" | "coins" | "financeiro" | "whatsapp" | "config";
+type Tab = "overview" | "agenda" | "alunos" | "relatorios" | "coins" | "financeiro" | "whatsapp" | "config";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "overview", label: "Visão Geral", icon: <LayoutDashboard size={18} /> },
   { id: "agenda", label: "Agenda", icon: <CalendarDays size={18} /> },
   { id: "alunos", label: "Alunos", icon: <Users size={18} /> },
+  { id: "relatorios", label: "Relatórios", icon: <FileText size={18} /> },
   { id: "coins", label: "GymCoins", icon: <Coins size={18} /> },
   { id: "financeiro", label: "Financeiro", icon: <BarChart2 size={18} /> },
   { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare size={18} /> },
@@ -788,6 +794,145 @@ function AppointmentCard({ appt, onUpdateStatus, updatingId, compact = false }: 
 }
 
 // ══════════════════════════════════════════════════════════════
+// STUDENT REGISTRATION MODAL
+// ══════════════════════════════════════════════════════════════
+interface StudentRegForm {
+  name: string; phone: string; email: string;
+  gender: "M" | "F" | "";
+  planName: string; planPrice: string; paymentDay: string;
+}
+
+function StudentRegModal({ onClose, onCreated }: {
+  onClose: () => void;
+  onCreated: (student: StudentData) => void;
+}) {
+  const [form, setForm] = useState<StudentRegForm>({
+    name: "", phone: "", email: "", gender: "",
+    planName: "", planPrice: "", paymentDay: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    if (!form.name.trim() || form.name.trim().length < 2) { setError("Nome deve ter ao menos 2 caracteres"); return; }
+    if (!form.phone.replace(/\D/g, "") || form.phone.replace(/\D/g, "").length < 10) { setError("Telefone deve ter ao menos 10 dígitos"); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        name: form.name.trim(),
+        phone: form.phone.replace(/\D/g, ""),
+      };
+      if (form.email.trim()) body.email = form.email.trim();
+      if (form.gender) body.gender = form.gender;
+      if (form.planName.trim()) body.planName = form.planName.trim();
+      if (form.planPrice) body.planPrice = Number(form.planPrice);
+      if (form.paymentDay) body.paymentDay = Number(form.paymentDay);
+
+      const res = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao cadastrar aluno");
+      onCreated(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="card w-full max-w-lg shadow-2xl dark:shadow-black/50 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="font-display font-bold text-xl text-surface-900 dark:text-white">Novo Aluno</h2>
+              <p className="text-xs text-surface-400 mt-0.5">Preencha os dados para cadastrar</p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700 transition-all">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Nome Completo *</label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Nome do aluno" className="input-base w-full" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Telefone *</label>
+                <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="(11) 99999-9999" className="input-base w-full" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Gênero</label>
+                <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value as "M" | "F" | "" }))} className="input-base w-full">
+                  <option value="">Não informado</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Feminino</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider block mb-1.5">Email</label>
+              <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="email@exemplo.com (opcional)" className="input-base w-full" />
+            </div>
+
+            <div className="border-t border-surface-100 dark:border-surface-800 pt-4">
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-3">Plano (opcional)</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-surface-500 dark:text-surface-400 block mb-1.5">Nome do Plano</label>
+                  <input value={form.planName} onChange={e => setForm(f => ({ ...f, planName: e.target.value }))}
+                    placeholder="Ex: Mensal, Trimestral..." className="input-base w-full" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-surface-500 dark:text-surface-400 block mb-1.5">Valor Mensal (R$)</label>
+                    <input type="number" value={form.planPrice} onChange={e => setForm(f => ({ ...f, planPrice: e.target.value }))}
+                      placeholder="0" min="0" className="input-base w-full" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-surface-500 dark:text-surface-400 block mb-1.5">Dia de Vencimento</label>
+                    <input type="number" value={form.paymentDay} onChange={e => setForm(f => ({ ...f, paymentDay: e.target.value }))}
+                      placeholder="1–28" min="1" max="28" className="input-base w-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                <AlertCircle size={15} />{error}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button onClick={onClose} className="btn-ghost flex-1 py-3 text-sm">Cancelar</button>
+            <button onClick={handleSubmit} disabled={submitting || !form.name || !form.phone}
+              className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2">
+              {submitting ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : <UserPlus size={16} />}
+              {submitting ? "Cadastrando..." : "Cadastrar Aluno"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // STUDENTS TAB
 // ══════════════════════════════════════════════════════════════
 function AlunosTab() {
@@ -796,6 +941,7 @@ function AlunosTab() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "overdue" | "inactive">("all");
   const [selected, setSelected] = useState<StudentData | null>(null);
+  const [showNewModal, setShowNewModal] = useState(false);
 
   useEffect(() => {
     fetch("/api/students")
@@ -804,6 +950,11 @@ function AlunosTab() {
       .catch(() => setStudents([]))
       .finally(() => setLoading(false));
   }, []);
+
+  function handleStudentCreated(student: StudentData) {
+    setStudents(prev => [student, ...prev]);
+    setShowNewModal(false);
+  }
 
   const filtered = students.filter(s => {
     if (filter !== "all" && s.status !== filter) return false;
@@ -835,13 +986,17 @@ function AlunosTab() {
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar aluno..." className="input-base w-full pl-9" />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {(["all","active","overdue","inactive"] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${f === filter ? "bg-brand-500 text-white" : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"}`}>
                 {f === "all" ? "Todos" : f === "active" ? "Ativos" : f === "overdue" ? "Inadimpl." : "Inativos"}
               </button>
             ))}
+            <button onClick={() => setShowNewModal(true)}
+              className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5 ml-auto md:ml-0">
+              <UserPlus size={14} /> Novo Aluno
+            </button>
           </div>
         </div>
 
@@ -928,6 +1083,195 @@ function AlunosTab() {
           </div>
         </div>
       )}
+
+      {showNewModal && (
+        <StudentRegModal
+          onClose={() => setShowNewModal(false)}
+          onCreated={handleStudentCreated}
+        />
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// REPORTS TAB
+// ══════════════════════════════════════════════════════════════
+function RelatoriosTab() {
+  const [loading, setLoading] = useState(true);
+  const [checkinData, setCheckinData] = useState<{ month: string; total: number }[]>([]);
+  const [revenueData, setRevenueData] = useState<{ month: string; total: number }[]>([]);
+  const [topStudents, setTopStudents] = useState<StudentData[]>([]);
+  const [retention, setRetention] = useState({ active: 0, overdue: 0, inactive: 0, total: 0 });
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Last 6 months labels
+    const months: { key: string; label: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      months.push({
+        key: d.toISOString().slice(0, 7),
+        label: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "") + "/" + d.getFullYear().toString().slice(2),
+      });
+    }
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    Promise.all([
+      supabase.from("checkins").select("checked_in_at").gte("checked_in_at", sixMonthsAgo.toISOString()),
+      supabase.from("student_payments").select("amount, paid_at").eq("status", "paid").gte("paid_at", sixMonthsAgo.toISOString().slice(0, 10)),
+      supabase.from("students").select("id,name,level,coins,total_checkins,monthly_checkins,status,email,phone,plan_name,last_checkin,joined_at").order("total_checkins", { ascending: false }).limit(10),
+      supabase.from("students").select("status"),
+    ]).then(([ci, py, top, st]) => {
+      const ciMap: Record<string, number> = {};
+      (ci.data ?? []).forEach(c => {
+        const k = (c.checked_in_at as string).slice(0, 7);
+        ciMap[k] = (ciMap[k] ?? 0) + 1;
+      });
+      setCheckinData(months.map(m => ({ month: m.label, total: ciMap[m.key] ?? 0 })));
+
+      const revMap: Record<string, number> = {};
+      (py.data ?? []).forEach(p => {
+        if (p.paid_at) {
+          const k = (p.paid_at as string).slice(0, 7);
+          revMap[k] = (revMap[k] ?? 0) + Number(p.amount);
+        }
+      });
+      setRevenueData(months.map(m => ({ month: m.label, total: revMap[m.key] ?? 0 })));
+
+      setTopStudents((top.data ?? []) as unknown as StudentData[]);
+
+      const statusData = st.data ?? [];
+      setRetention({
+        active: statusData.filter(s => s.status === "active").length,
+        overdue: statusData.filter(s => s.status === "overdue").length,
+        inactive: statusData.filter(s => ["inactive", "suspended"].includes(s.status)).length,
+        total: statusData.length,
+      });
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const totalCheckins = checkinData.reduce((s, m) => s + m.total, 0);
+  const totalRevenue = revenueData.reduce((s, m) => s + m.total, 0);
+
+  return (
+    <div className="space-y-6 stagger">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPI label="Check-ins (6 meses)" value={totalCheckins.toLocaleString("pt-BR")} />
+        <KPI label="Receita (6 meses)" value={`R$ ${totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`} />
+        <KPI label="Taxa de Retenção" value={`${retention.total > 0 ? Math.round(retention.active / retention.total * 100) : 0}%`} />
+        <KPI label="Inadimplência" value={`${retention.total > 0 ? Math.round(retention.overdue / retention.total * 100) : 0}%`} />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="card p-6">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-5">Check-ins por Mês</h3>
+          {loading ? <Skeleton className="h-48" /> : (
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={checkinData} barSize={28}>
+                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.08} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, border: "none", fontSize: 12, boxShadow: "0 4px 24px rgba(0,0,0,.1)" }}
+                  formatter={(v: number) => [v, "Check-ins"]}
+                />
+                <Bar dataKey="total" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="card p-6">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-5">Receita por Mês (R$)</h3>
+          {loading ? <Skeleton className="h-48" /> : (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={revenueData}>
+                <defs>
+                  <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.08} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={50}
+                  tickFormatter={v => `R$${v}`} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, border: "none", fontSize: 12, boxShadow: "0 4px 24px rgba(0,0,0,.1)" }}
+                  formatter={(v: number) => [`R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, "Receita"]}
+                />
+                <Area type="monotone" dataKey="total" stroke="#8b5cf6" fill="url(#revenueGrad)" strokeWidth={2} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="card p-6">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-5">Distribuição de Alunos</h3>
+          {loading ? <Skeleton className="h-32" /> : (
+            <div className="space-y-4">
+              {[
+                { label: "Ativos", value: retention.active, color: "bg-emerald-500", pct: retention.total > 0 ? retention.active / retention.total : 0 },
+                { label: "Inadimplentes", value: retention.overdue, color: "bg-red-500", pct: retention.total > 0 ? retention.overdue / retention.total : 0 },
+                { label: "Inativos", value: retention.inactive, color: "bg-surface-400", pct: retention.total > 0 ? retention.inactive / retention.total : 0 },
+              ].map(row => (
+                <div key={row.label}>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-surface-600 dark:text-surface-400">{row.label}</span>
+                    <span className="font-semibold text-surface-900 dark:text-white">{row.value} <span className="text-surface-400 font-normal">({(row.pct * 100).toFixed(0)}%)</span></span>
+                  </div>
+                  <div className="h-2 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
+                    <div className={`h-full ${row.color} rounded-full transition-all duration-700`} style={{ width: `${row.pct * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-surface-100 dark:border-surface-800 text-xs text-surface-400 text-center">
+                {retention.total} alunos no total
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="card p-6 lg:col-span-2">
+          <h3 className="font-display font-bold text-surface-900 dark:text-white mb-4">Top 10 Alunos por Check-ins</h3>
+          {loading ? (
+            <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+          ) : topStudents.length === 0 ? (
+            <div className="text-center py-8 text-surface-400 dark:text-surface-600 text-sm">
+              <Users className="mx-auto mb-2 opacity-30" size={32} />
+              <p>Nenhum aluno ainda</p>
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {topStudents.map((s, i) => (
+                <div key={s.id} className="flex items-center gap-3 py-2 px-3 rounded-xl hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-all">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${i === 0 ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400" : i === 1 ? "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400" : i === 2 ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400" : "bg-surface-50 dark:bg-surface-800 text-surface-400"}`}>
+                    {i + 1}
+                  </span>
+                  <Avatar name={s.name ?? "?"} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-surface-900 dark:text-white truncate">{s.name}</div>
+                    <div className="text-xs text-surface-400">{s.level} • {s.plan_name ?? "—"}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-bold text-surface-900 dark:text-white">{s.total_checkins} <span className="text-xs font-normal text-surface-400">check-ins</span></div>
+                    <div className="flex items-center gap-0.5 text-brand-500 text-xs font-semibold justify-end"><Coins size={10} />{s.coins}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1336,7 +1680,6 @@ function ConfigTab({ studio, onStudioUpdate }: { studio: StudioData | null; onSt
             { name: "TotalPass", status: "Disponível", color: "blue", icon: "🎫" },
             { name: "Catraca Eletrônica", status: "Configurar", color: "amber", icon: "🚪" },
             { name: "WhatsApp Business", status: "Conectado", color: "green", icon: "📱" },
-            { name: "PIX Automático", status: "Disponível", color: "blue", icon: "💳" },
             { name: "Google Calendar", status: "Disponível", color: "blue", icon: "📅" },
           ].map(int => (
             <div key={int.name} className="flex items-center gap-3 p-4 rounded-xl border border-surface-200/40 dark:border-surface-700/40 hover:border-brand-200/40 dark:hover:border-brand-700/40 transition-all">
@@ -1425,13 +1768,14 @@ export default function PainelPage() {
 
   const TabContent = useCallback(() => {
     switch (activeTab) {
-      case "overview":   return <OverviewTab dashboard={dashboard} trainers={trainers} loading={loadingGlobal} />;
-      case "agenda":     return <AgendaTab trainers={trainers} />;
-      case "alunos":     return <AlunosTab />;
-      case "coins":      return <CoinsTab />;
-      case "financeiro": return <FinanceiroTab dashboard={dashboard} />;
-      case "whatsapp":   return <WhatsAppTab />;
-      case "config":     return <ConfigTab studio={studio} onStudioUpdate={setStudio} />;
+      case "overview":    return <OverviewTab dashboard={dashboard} trainers={trainers} loading={loadingGlobal} />;
+      case "agenda":      return <AgendaTab trainers={trainers} />;
+      case "alunos":      return <AlunosTab />;
+      case "relatorios":  return <RelatoriosTab />;
+      case "coins":       return <CoinsTab />;
+      case "financeiro":  return <FinanceiroTab dashboard={dashboard} />;
+      case "whatsapp":    return <WhatsAppTab />;
+      case "config":      return <ConfigTab studio={studio} onStudioUpdate={setStudio} />;
     }
   }, [activeTab, dashboard, trainers, loadingGlobal, studio]);
 
