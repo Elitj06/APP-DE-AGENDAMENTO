@@ -323,13 +323,13 @@ export default function AppPage() {
                           {nextAppt.date === new Date().toISOString().split("T")[0] ? "Hoje" : "Em breve"}
                         </span>
                         <span className="text-lg font-display font-bold text-brand-300">
-                          {nextAppt.start_time?.slice(0, 5)}
+                          {nextAppt.time?.slice(0, 5)}
                         </span>
                       </div>
                       <div>
-                        <div className="font-semibold">{nextAppt.type}</div>
+                        <div className="font-semibold">{nextAppt.service_type}</div>
                         <div className="text-sm text-white/40">
-                          com {nextAppt.trainers?.name} • {nextAppt.duration_min || 60}min
+                          com {nextAppt.trainers?.name} • {nextAppt.duration || 60}min
                         </div>
                       </div>
                     </div>
@@ -373,42 +373,93 @@ export default function AppPage() {
         )}
 
         {/* ── AGENDA ── */}
-        {tab === "agenda" && (
-          <div className="space-y-4 stagger">
-            <div className="glass rounded-2xl p-5">
-              <h3 className="font-display font-bold mb-4">Minhas Aulas</h3>
-              {loading ? <Skeleton className="h-40" /> : appointments.length === 0 ? (
-                <div className="text-white/30 text-sm text-center py-8">Nenhuma aula encontrada</div>
-              ) : (
-                <div className="space-y-3">
-                  {appointments.map((a: any) => (
-                    <div key={a.id} className="flex items-center gap-4 py-3 border-b border-white/5 last:border-0">
-                      <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex flex-col items-center justify-center">
-                        <span className="text-[10px] text-brand-400">
-                          {a.date === new Date().toISOString().split("T")[0] ? "Hoje" :
-                            a.date === new Date(Date.now() + 86400000).toISOString().split("T")[0] ? "Amanhã" :
-                            new Date(a.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+        {tab === "agenda" && (() => {
+          const SERVICE_ICONS: Record<string, string> = {
+            "Personal Training": "🏋️", "Pilates": "🧘", "Yoga": "🌿",
+            "CrossFit": "🔥", "Funcional": "⚡", "Musculação": "💪",
+            "Spinning": "🚴", "Avaliação Física": "📋",
+          };
+          const todayStr = new Date().toISOString().split("T")[0];
+          const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+
+          const upcoming = appointments.filter((a: any) => ["booked", "confirmed"].includes(a.status));
+          const history = appointments
+            .filter((a: any) => ["completed", "checked_in"].includes(a.status))
+            .sort((a: any, b: any) => (b.date + b.time).localeCompare(a.date + a.time));
+
+          function dateLabel(date: string) {
+            if (date === todayStr) return "Hoje";
+            if (date === tomorrowStr) return "Amanhã";
+            return new Date(date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+          }
+
+          return (
+            <div className="space-y-4 stagger">
+              {/* Próximas aulas */}
+              <div className="glass rounded-2xl p-5">
+                <h3 className="font-display font-bold mb-4">Próximas Aulas</h3>
+                {loading ? <Skeleton className="h-32" /> : upcoming.length === 0 ? (
+                  <div className="text-white/30 text-sm text-center py-6">Nenhuma aula agendada</div>
+                ) : (
+                  <div className="space-y-3">
+                    {upcoming.map((a: any) => (
+                      <div key={a.id} className="flex items-center gap-4 py-3 border-b border-white/5 last:border-0">
+                        <div className="w-12 h-12 rounded-xl bg-brand-500/15 flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[10px] text-brand-400 font-medium">{dateLabel(a.date)}</span>
+                          <span className="text-sm font-bold text-brand-300">{a.time?.slice(0, 5)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm flex items-center gap-1.5">
+                            <span>{SERVICE_ICONS[a.service_type] ?? "🏃"}</span>
+                            <span className="truncate">{a.service_type}</span>
+                          </div>
+                          <div className="text-xs text-white/40">com {a.trainers?.name ?? "—"} • {a.duration || 60}min</div>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-brand-500/20 text-brand-400 shrink-0">
+                          {a.status === "confirmed" ? "Confirmado" : "Agendado"}
                         </span>
-                        <span className="text-sm font-bold text-brand-300">{a.start_time?.slice(0, 5)}</span>
                       </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-sm">{a.type}</div>
-                        <div className="text-xs text-white/40">com {a.trainers?.name} • {a.duration_min || 60}min</div>
-                      </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        a.status === "completed" ? "bg-green-500/20 text-green-400" :
-                        a.status === "checked_in" ? "bg-blue-500/20 text-blue-400" :
-                        "bg-brand-500/20 text-brand-400"}`}>
-                        {a.status === "completed" ? "✓ Feito" : a.status === "checked_in" ? "Em andamento" :
-                         a.status === "cancelled" ? "Cancelado" : "Agendado"}
-                      </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Histórico de treinos */}
+              <div className="glass rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-display font-bold">Histórico de Treinos</h3>
+                  <span className="text-xs text-white/30">{history.length} treino{history.length !== 1 ? "s" : ""}</span>
                 </div>
-              )}
+                {loading ? <Skeleton className="h-40" /> : history.length === 0 ? (
+                  <div className="text-white/30 text-sm text-center py-6">Nenhum treino registrado ainda</div>
+                ) : (
+                  <div className="space-y-3">
+                    {history.map((a: any) => (
+                      <div key={a.id} className="flex items-center gap-4 py-3 border-b border-white/5 last:border-0">
+                        <div className="w-12 h-12 rounded-xl bg-white/5 flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[10px] text-white/40 font-medium">
+                            {new Date(a.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                          </span>
+                          <span className="text-sm font-bold text-white/60">{a.time?.slice(0, 5)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm flex items-center gap-1.5">
+                            <span>{SERVICE_ICONS[a.service_type] ?? "🏃"}</span>
+                            <span className="truncate">{a.service_type}</span>
+                          </div>
+                          <div className="text-xs text-white/40">com {a.trainers?.name ?? "—"} • {a.duration || 60}min</div>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-green-500/20 text-green-400 shrink-0">
+                          ✓ Feito
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── RANKING ── */}
         {tab === "ranking" && (

@@ -942,6 +942,8 @@ function AlunosTab() {
   const [filter, setFilter] = useState<"all" | "active" | "overdue" | "inactive">("all");
   const [selected, setSelected] = useState<StudentData | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [studentHistory, setStudentHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/students")
@@ -950,6 +952,21 @@ function AlunosTab() {
       .catch(() => setStudents([]))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!selected) { setStudentHistory([]); return; }
+    setHistoryLoading(true);
+    fetch(`/api/appointments?studentId=${selected.id}`)
+      .then(r => r.json())
+      .then(data => {
+        const done = (Array.isArray(data) ? data : [])
+          .filter((a: any) => ["completed", "checked_in"].includes(a.status))
+          .sort((a: any, b: any) => (b.date + b.time).localeCompare(a.date + a.time));
+        setStudentHistory(done);
+      })
+      .catch(() => setStudentHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [selected]);
 
   function handleStudentCreated(student: StudentData) {
     setStudents(prev => [student, ...prev]);
@@ -1073,6 +1090,49 @@ function AlunosTab() {
                   </div>
                 ))}
               </div>
+              <div className="border-t border-surface-100 dark:border-surface-800 pt-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+                    Histórico de Treinos
+                  </span>
+                  <span className="text-xs text-surface-400">{studentHistory.length} registros</span>
+                </div>
+                {historyLoading ? (
+                  <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+                ) : studentHistory.length === 0 ? (
+                  <div className="text-center py-5 text-surface-400 dark:text-surface-600 text-xs">
+                    <Dumbbell className="mx-auto mb-1.5 opacity-30" size={22} />
+                    Nenhum treino registrado
+                  </div>
+                ) : (
+                  <div className="max-h-52 overflow-y-auto space-y-0.5 -mx-1 px-1">
+                    {studentHistory.map((a: any) => (
+                      <div key={a.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                        <div className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-950/30 flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[9px] text-brand-500 font-medium leading-tight">
+                            {new Date(a.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                          </span>
+                          <span className="text-[9px] text-brand-400 font-mono leading-tight">{a.time?.slice(0, 5)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-surface-900 dark:text-white truncate">{a.service_type}</div>
+                          <div className="text-[10px] text-surface-400 truncate">
+                            {a.trainers?.name ?? "—"}{a.duration ? ` • ${a.duration}min` : ""}
+                          </div>
+                        </div>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0 ${
+                          a.status === "completed"
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                            : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                        }`}>
+                          {a.status === "completed" ? "Concluído" : "Check-in"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 <button className="btn-primary flex-1 py-2.5 text-sm flex items-center justify-center gap-2">
                   <MessageSquare size={15} /> Mensagem
