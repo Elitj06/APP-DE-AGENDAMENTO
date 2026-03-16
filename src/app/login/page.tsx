@@ -16,10 +16,22 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError(error.message); setLoading(false); return; }
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) { setError(authError.message); setLoading(false); return; }
+      router.push("/painel");
+      router.refresh();
+    } catch {
+      // If Supabase not configured, go to demo mode
+      router.push("/painel");
+    }
+  }
+
+  function handleDemoAccess() {
+    setEmail("demo@gymflow.app");
+    setPassword("demo123");
+    // Navigate to painel directly (demo fallback will handle data)
     router.push("/painel");
-    router.refresh();
   }
 
   return (
@@ -54,6 +66,17 @@ export default function LoginPage() {
             {loading ? "Entrando..." : "Entrar →"}
           </button>
 
+          <div className="relative flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-white/10" />
+            <span className="text-xs text-white/20">ou</span>
+            <div className="flex-1 h-px bg-white/10" />
+          </div>
+
+          <button type="button" onClick={handleDemoAccess}
+            className="w-full border border-brand-500/30 bg-brand-500/5 text-brand-400 font-display font-bold py-3.5 rounded-xl transition hover:bg-brand-500/10 hover:border-brand-500/50 flex items-center justify-center gap-2">
+            <span className="text-lg">🚀</span> Acessar Demo Interativa
+          </button>
+
           <p className="text-center text-white/30 text-sm">
             Sem conta?{" "}
             <Link href="/onboarding" className="text-brand-400 hover:text-brand-300 transition">
@@ -61,6 +84,12 @@ export default function LoginPage() {
             </Link>
           </p>
         </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-xs text-white/15">
+            Demo: demo@gymflow.app / demo123
+          </p>
+        </div>
       </div>
     </div>
   );

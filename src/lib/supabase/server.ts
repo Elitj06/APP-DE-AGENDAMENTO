@@ -3,6 +3,10 @@ import { type SupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import type { Database } from '@/types/database'
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
+const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MjAwMDAwMDAwMH0.placeholder'
+const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON
+
 function cookieHandlers(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   return {
     getAll() { return cookieStore.getAll() },
@@ -16,22 +20,16 @@ function cookieHandlers(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   }
 }
 
-// Cast to SupabaseClient<Database> to work around a type-parameter ordering
-// mismatch between @supabase/ssr v0.5.x and @supabase/supabase-js v2.99+.
 export async function createClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: cookieHandlers(cookieStore) }
-  ) as unknown as SupabaseClient<Database>
+  return createServerClient(SUPABASE_URL, SUPABASE_ANON, {
+    cookies: cookieHandlers(cookieStore),
+  }) as unknown as SupabaseClient<Database>
 }
 
 export async function createServiceClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: cookieHandlers(cookieStore) }
-  ) as unknown as SupabaseClient<Database>
+  return createServerClient(SUPABASE_URL, SUPABASE_SERVICE, {
+    cookies: cookieHandlers(cookieStore),
+  }) as unknown as SupabaseClient<Database>
 }
