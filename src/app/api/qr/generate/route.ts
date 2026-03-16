@@ -1,16 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import QRCode from 'qrcode'
 
 // GET /api/qr/generate?studentId=...&studioId=...
 // Gera QR Code único para check-in do aluno
 export async function GET(req: NextRequest) {
+  // Auth: apenas owner/trainer do studio pode gerar QR
+  const authClient = await createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const studentId = searchParams.get('studentId')
   const studioId = searchParams.get('studioId')
 
   if (!studentId || !studioId) {
     return NextResponse.json({ error: 'studentId e studioId obrigatórios' }, { status: 400 })
+  }
+
+  // Verificar que o usuário pertence ao studio
+  const { data: profile } = await authClient
+    .from('profiles').select('studio_id').eq('id', user.id).single()
+
+  if (profile?.studio_id !== studioId) {
+    return NextResponse.json({ error: 'Forbidden — studio mismatch' }, { status: 403 })
   }
 
   const supabase = await createServiceClient()

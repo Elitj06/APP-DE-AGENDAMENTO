@@ -348,23 +348,135 @@ ALTER TABLE monthly_rankings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedule_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE qr_tokens ENABLE ROW LEVEL SECURITY;
 
+-- ── Helper: retorna studio_id(s) do usuário autenticado ──
+-- Usado em todas as policies para evitar repetição
+CREATE OR REPLACE FUNCTION auth_studio_ids()
+RETURNS SETOF UUID AS $$
+  SELECT id FROM studios WHERE owner_id = auth.uid()
+  UNION
+  SELECT studio_id FROM profiles WHERE id = auth.uid() AND studio_id IS NOT NULL
+  UNION
+  SELECT studio_id FROM trainers WHERE user_id = auth.uid()
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- ── STUDIOS ──────────────────────────────────────────────────
 -- Owner vê e edita seu próprio studio
 CREATE POLICY "owner_manage_studio" ON studios
   USING (owner_id = auth.uid())
   WITH CHECK (owner_id = auth.uid());
 
--- Studio members veem dados do seu studio
-CREATE POLICY "studio_members_view" ON students
-  USING (studio_id IN (
-    SELECT id FROM studios WHERE owner_id = auth.uid()
-    UNION
-    SELECT studio_id FROM profiles WHERE id = auth.uid()
-  ));
-
--- Profiles próprios
+-- ── PROFILES ─────────────────────────────────────────────────
+-- Usuário vê e edita seu próprio perfil
 CREATE POLICY "own_profile" ON profiles
   USING (id = auth.uid())
   WITH CHECK (id = auth.uid());
+
+-- Owner/trainer vê perfis do mesmo studio
+CREATE POLICY "studio_profiles_view" ON profiles FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+-- ── STUDENTS ─────────────────────────────────────────────────
+-- Owner/trainer vê e gerencia alunos do studio
+CREATE POLICY "studio_members_view" ON students FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_members_insert" ON students FOR INSERT
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+CREATE POLICY "studio_members_update" ON students FOR UPDATE
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()))
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+CREATE POLICY "studio_members_delete" ON students FOR DELETE
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+-- ── TRAINERS ─────────────────────────────────────────────────
+CREATE POLICY "studio_trainers_view" ON trainers FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_trainers_manage" ON trainers FOR ALL
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()))
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+-- ── APPOINTMENTS ─────────────────────────────────────────────
+-- Studio members veem agendamentos do studio
+CREATE POLICY "studio_appointments_view" ON appointments FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+-- Owner cria/edita agendamentos
+CREATE POLICY "studio_appointments_manage" ON appointments FOR ALL
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()))
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+-- ── CHECKINS ─────────────────────────────────────────────────
+CREATE POLICY "studio_checkins_view" ON checkins FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_checkins_insert" ON checkins FOR INSERT
+  WITH CHECK (studio_id IN (SELECT auth_studio_ids()));
+
+-- ── COIN_TRANSACTIONS ────────────────────────────────────────
+CREATE POLICY "studio_coins_view" ON coin_transactions FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_coins_insert" ON coin_transactions FOR INSERT
+  WITH CHECK (studio_id IN (SELECT auth_studio_ids()));
+
+-- ── REWARDS ──────────────────────────────────────────────────
+CREATE POLICY "studio_rewards_view" ON rewards FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_rewards_manage" ON rewards FOR ALL
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()))
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+-- ── REWARD_REDEMPTIONS ───────────────────────────────────────
+CREATE POLICY "studio_redemptions_view" ON reward_redemptions FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_redemptions_insert" ON reward_redemptions FOR INSERT
+  WITH CHECK (studio_id IN (SELECT auth_studio_ids()));
+
+-- ── NOTIFICATION_TEMPLATES ───────────────────────────────────
+CREATE POLICY "studio_notif_templates_view" ON notification_templates FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_notif_templates_manage" ON notification_templates FOR ALL
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()))
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+-- ── STUDENT_PAYMENTS ─────────────────────────────────────────
+CREATE POLICY "studio_payments_view" ON student_payments FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_payments_manage" ON student_payments FOR ALL
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()))
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+-- ── MONTHLY_RANKINGS ─────────────────────────────────────────
+-- Rankings são públicos (usados pelo TV display e app do aluno)
+CREATE POLICY "rankings_public_read" ON monthly_rankings FOR SELECT
+  USING (true);
+
+CREATE POLICY "rankings_studio_manage" ON monthly_rankings FOR ALL
+  USING (studio_id IN (SELECT auth_studio_ids()))
+  WITH CHECK (studio_id IN (SELECT auth_studio_ids()));
+
+-- ── SCHEDULE_SLOTS ───────────────────────────────────────────
+CREATE POLICY "studio_slots_view" ON schedule_slots FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_slots_manage" ON schedule_slots FOR ALL
+  USING (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()))
+  WITH CHECK (studio_id IN (SELECT id FROM studios WHERE owner_id = auth.uid()));
+
+-- ── QR_TOKENS ────────────────────────────────────────────────
+CREATE POLICY "studio_qr_view" ON qr_tokens FOR SELECT
+  USING (studio_id IN (SELECT auth_studio_ids()));
+
+CREATE POLICY "studio_qr_manage" ON qr_tokens FOR ALL
+  USING (studio_id IN (SELECT auth_studio_ids()))
+  WITH CHECK (studio_id IN (SELECT auth_studio_ids()));
 
 -- ─── FUNCTIONS & TRIGGERS ────────────────────────────────────
 

@@ -24,21 +24,23 @@ SaaS para academias e estúdios fitness com sistema de gamificação (GymCoins),
 | Campo | Valor |
 |-------|-------|
 | **Projeto** | Gym-System |
-| **Project ID** | `uefeequpwjpkeorkmwbe` |
-| **URL** | `https://uefeequpwjpkeorkmwbe.supabase.co` |
+| **Project ID** | *(ver Supabase Dashboard)* |
+| **URL** | *(configurar em .env.local via NEXT_PUBLIC_SUPABASE_URL)* |
 | **Região** | us-west-2 |
-| **Anon Key** | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZmVlcXVwd2pwa2Vvcmttd2JlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwOTMwOTQsImV4cCI6MjA4NjY2OTA5NH0.iV4o8eys4Obm53GBIFa-sDC1qqdVOOKCTpcfaSXlT4g` |
+| **Anon Key** | *(configurar em .env.local via NEXT_PUBLIC_SUPABASE_ANON_KEY)* |
 | **Service Role Key** | ⚠️ Obter em: Supabase Dashboard → Settings → API → `service_role` |
+
+> ⚠️ **NUNCA commitar credenciais no repositório.** Use `.env.local` (ignorado pelo `.gitignore`) ou variáveis de ambiente no Vercel.
 
 ---
 
 ## Arquivos de Configuração
 
-### `.env.local` (já criado)
+### `.env.local` (criar localmente — não commitar)
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://uefeequpwjpkeorkmwbe.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-SUPABASE_SERVICE_ROLE_KEY=  ← ADICIONAR
+NEXT_PUBLIC_SUPABASE_URL=https://SEU_PROJETO.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_anon_key_aqui
+SUPABASE_SERVICE_ROLE_KEY=sua_service_role_key_aqui
 ```
 
 ### `vercel.json` — já configurado com crons e referências às env vars.

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendNotification } from '@/lib/whatsapp'
 import { z } from 'zod'
 
@@ -10,6 +10,11 @@ const schema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  // Auth: apenas owner/trainer do studio pode resgatar para aluno
+  const authClient = await createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const supabase = await createServiceClient()
 
   try {
