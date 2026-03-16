@@ -3,6 +3,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
+  DEMO_STUDIO, DEMO_TRAINERS, DEMO_DASHBOARD, DEMO_STUDENTS,
+  getDemoAppointments, DEMO_COIN_TXS, DEMO_REWARDS, DEMO_PAYMENT_STATS,
+} from "@/lib/demo-data";
+import {
   LayoutDashboard, CalendarDays, Users, BarChart2, MessageSquare,
   Settings, Monitor, LogOut, Sun, Moon, Plus, ChevronLeft, ChevronRight,
   X, Check, UserCheck, XCircle, Search, Coins, Trophy, TrendingUp,
@@ -567,9 +571,16 @@ function AgendaTab({ trainers }: { trainers: TrainerData[] }) {
   const fetchAppointments = useCallback(() => {
     setLoading(true);
     fetch(`/api/appointments?date=${dateStr}`)
-      .then(r => r.json())
-      .then(data => setAppointments(Array.isArray(data) ? data : []))
-      .catch(() => setAppointments([]))
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAppointments(data);
+        } else {
+          // Demo fallback: use realistic demo appointments
+          setAppointments(getDemoAppointments(dateStr) as any);
+        }
+      })
+      .catch(() => setAppointments(getDemoAppointments(dateStr) as any))
       .finally(() => setLoading(false));
   }, [dateStr]);
 
@@ -990,9 +1001,12 @@ function AlunosTab() {
 
   useEffect(() => {
     fetch("/api/students")
-      .then(r => r.json())
-      .then(data => setStudents(Array.isArray(data) ? data : []))
-      .catch(() => setStudents([]))
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) setStudents(data);
+        else setStudents(DEMO_STUDENTS as any);
+      })
+      .catch(() => setStudents(DEMO_STUDENTS as any))
       .finally(() => setLoading(false));
   }, []);
 
@@ -1515,9 +1529,14 @@ function CoinsTab() {
       supabase.from("coin_transactions").select("*, profiles(full_name)").order("created_at", { ascending: false }).limit(20),
       supabase.from("rewards").select("*").eq("is_active", true).order("coins_cost", { ascending: true }),
     ]).then(([txRes, rewardsRes]) => {
-      setTransactions((txRes.data ?? []) as unknown as CoinTx[]);
-      setRewards(rewardsRes.data ?? []);
-    }).catch(() => {}).finally(() => setLoading(false));
+      const txData = (txRes.data ?? []) as unknown as CoinTx[];
+      const rwData = rewardsRes.data ?? [];
+      setTransactions(txData.length > 0 ? txData : DEMO_COIN_TXS as any);
+      setRewards(rwData.length > 0 ? rwData : DEMO_REWARDS as any);
+    }).catch(() => {
+      setTransactions(DEMO_COIN_TXS as any);
+      setRewards(DEMO_REWARDS as any);
+    }).finally(() => setLoading(false));
   }, []);
 
   const totalDistributed = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -1632,9 +1651,9 @@ function FinanceiroTab({ dashboard }: { dashboard: DashboardData | null }) {
 
   useEffect(() => {
     fetch("/api/payments")
-      .then(r => r.json())
-      .then(data => setPaymentStats(data.stats ?? null))
-      .catch(() => {})
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setPaymentStats(data?.stats ?? DEMO_PAYMENT_STATS))
+      .catch(() => setPaymentStats(DEMO_PAYMENT_STATS))
       .finally(() => setLoading(false));
   }, []);
 
@@ -1954,10 +1973,21 @@ export default function PainelPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/studio").then(r => r.ok ? r.json() : null),
-      fetch("/api/dashboard").then(r => r.ok ? r.json() : null),
-      fetch("/api/trainers").then(r => r.ok ? r.json() : []),
+      fetch("/api/studio").then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("/api/dashboard").then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("/api/trainers").then(r => r.ok ? r.json() : []).catch(() => []),
     ]).then(([studioData, dashData, trainersData]) => {
+      // If no data from APIs, use demo data for investor presentation
+      const useDemoFallback = !studioData && !dashData;
+
+      if (useDemoFallback) {
+        setStudio(DEMO_STUDIO as any);
+        setDashboard(DEMO_DASHBOARD);
+        setTrainers(DEMO_TRAINERS as any);
+        setLoadingGlobal(false);
+        return;
+      }
+
       setStudio(studioData);
       setDashboard(dashData?.kpis ? {
         totalStudents: dashData.kpis.totalStudents ?? 0,

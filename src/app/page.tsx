@@ -141,17 +141,13 @@ export default function LandingPage() {
           <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-brand-700/10 rounded-full blur-[100px]" />
         </div>
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-xs text-white/60 mb-8 animate-fade-up">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            Plataforma #1 em gamificação fitness no Brasil
-          </div>
           <h1 className="font-display font-black text-[clamp(2.5rem,7vw,5rem)] leading-[0.95] tracking-tight mb-6 animate-fade-up" style={{ animationDelay: "0.1s" }}>
-            Transforme check-ins em{" "}
-            <span className="gradient-text">moedas de retenção</span>
+            Transforme seus treinos em{" "}
+            <span className="gradient-text">benefícios</span>
           </h1>
           <p className="text-white/50 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-up" style={{ animationDelay: "0.2s" }}>
-            Agendamento automatizado, gamificação com Gym Coins e notificações via WhatsApp.
-            Para personal trainers, studios, pilates e micro gyms.
+            Plataforma completa de agendamento, gamificação e gestão para negócios fitness.
+            Engaje seus alunos, automatize sua operação e escale seus resultados.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: "0.3s" }}>
             <Link href="/painel" className="bg-gradient-to-r from-brand-500 to-brand-600 text-white font-display font-bold text-base px-8 py-4 rounded-full shadow-[0_0_40px_rgba(249,115,22,0.4)] hover:shadow-[0_0_60px_rgba(249,115,22,0.6)] transition-all hover:scale-105">
@@ -258,7 +254,7 @@ export default function LandingPage() {
         <div className="max-w-2xl mx-auto text-center">
           <div className="text-6xl mb-6">🪙</div>
           <h2 className="font-display font-black text-3xl md:text-5xl tracking-tight mb-4">
-            Pronto para <span className="gradient-text">transformar</span> seu studio?
+            Escale para o <span className="gradient-text">próximo nível</span>
           </h2>
           <p className="text-white/40 mb-8">Setup em menos de 10 minutos. Seus alunos vão amar.</p>
           <Link href="/painel" className="inline-block bg-gradient-to-r from-brand-500 to-brand-600 text-white font-display font-bold text-lg px-10 py-5 rounded-full shadow-[0_0_60px_rgba(249,115,22,0.5)] hover:shadow-[0_0_80px_rgba(249,115,22,0.7)] transition-all hover:scale-105">
