@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useExperiment } from "@/lib/hackle/useExperiment";
 
 const STEPS = ["Seu Studio", "Tipo de Negócio", "Pronto!"] as const;
 
@@ -16,6 +17,8 @@ const TYPES = [
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const ctaText = useExperiment('ONBOARDING_CTA');
+  const coinsDisplay = useExperiment('COINS_REWARD_DISPLAY');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -72,7 +75,7 @@ export default function OnboardingPage() {
         {step === 0 && (
           <div className="glass rounded-2xl p-8 space-y-5">
             <h2 className="font-display font-bold text-2xl">Vamos começar! 🚀</h2>
-            <p className="text-white/40 text-sm">Setup em menos de 2 minutos. Sem cartão de crédito.</p>
+            <p className="text-white/40 text-sm">Setup em menos de 2 minutos. Ganhe <strong className="text-brand-400">{coinsDisplay} GymCoins</strong> por check-in. Sem cartão.</p>
 
             <div className="space-y-4">
               <div>
@@ -111,7 +114,7 @@ export default function OnboardingPage() {
               onClick={() => setStep(1)}
               disabled={!form.name || !form.email || !form.password || !form.studioName || !form.phone}
               className="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white font-display font-bold py-4 rounded-xl disabled:opacity-40 transition hover:shadow-lg hover:shadow-brand-500/30">
-              Continuar →
+              {ctaText} →
             </button>
           </div>
         )}

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { HackleProvider } from "@/lib/hackle/provider";
 
 export const metadata: Metadata = {
   title: "GymFlow & Coins — Agendamento + Gamificação para Fitness",
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="antialiased bg-surface-50 dark:bg-surface-950 transition-colors">{children}</body>
+      <body className="antialiased bg-surface-50 dark:bg-surface-950 transition-colors">
+        <HackleProvider>{children}</HackleProvider>
+      </body>
     </html>
   );
 }

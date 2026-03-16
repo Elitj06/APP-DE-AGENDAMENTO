@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useExperiment } from "@/lib/hackle/useExperiment";
 
 // ─── Níveis (constantes locais, sem mock) ────────────────────
 const LEVELS = [
@@ -223,6 +224,7 @@ export default function AppPage() {
 
   const { level: lvl, next: nextLvl, progress } = getLevelInfo(displayStudent.total_checkins || 0);
   const myRankPos = ranking.findIndex((r: any) => r.students?.id === student?.id) + 1;
+  const dashboardHero = useExperiment('STUDENT_DASHBOARD_HERO');
 
   const futureAppts = appointments.filter((a: any) =>
     a.status === "booked" || a.status === "confirmed"
@@ -275,29 +277,61 @@ export default function AppPage() {
               </>
             ) : (
               <>
-                {/* Coin Counter */}
-                <div className="glass rounded-2xl p-8">
-                  <AnimatedCoinCounter target={displayStudent.coins} onCheckin={handleCheckin} />
-                </div>
-
-                {/* Level Progress */}
-                <div className="glass rounded-2xl p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{lvl.icon}</span>
-                      <span className="font-display font-bold" style={{ color: lvl.color }}>{lvl.name}</span>
+                {/* Hero Card — A/B: simple vs gamified */}
+                {dashboardHero === 'gamified' ? (
+                  <div className="glass rounded-2xl p-6 space-y-4 border border-brand-500/20">
+                    {/* Gamified: coins + nível + streak tudo junto */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs text-white/30 uppercase tracking-wider">Seus GymCoins</div>
+                        <div className="text-5xl font-display font-black gradient-text mt-0.5">{displayStudent.coins}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-3xl mb-1">{lvl.icon}</div>
+                        <div className="text-xs font-bold" style={{ color: lvl.color }}>{lvl.name}</div>
+                        <div className="text-[10px] text-white/30">{displayStudent.monthly_checkins} este mês</div>
+                      </div>
                     </div>
-                    {nextLvl && <span className="text-xs text-white/30">Próximo: {nextLvl.icon} {nextLvl.name}</span>}
+                    <div>
+                      <div className="flex justify-between text-[10px] text-white/30 mb-1">
+                        <span>{displayStudent.total_checkins} check-ins</span>
+                        {nextLvl && <span>{nextLvl.minCheckins - displayStudent.total_checkins} para {nextLvl.icon} {nextLvl.name}</span>}
+                      </div>
+                      <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-1000"
+                          style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${lvl.color}99, ${lvl.color})` }} />
+                      </div>
+                    </div>
+                    <button onClick={handleCheckin}
+                      className="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white font-display font-bold py-3.5 rounded-xl shadow-[0_0_25px_rgba(249,115,22,0.35)] hover:shadow-[0_0_40px_rgba(249,115,22,0.5)] transition-all hover:scale-[1.02] active:scale-[0.98] text-sm">
+                      🏋️ Registrar Check-in
+                    </button>
                   </div>
-                  <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-1000"
-                      style={{ width: `${progress}%`, backgroundColor: lvl.color }} />
-                  </div>
-                  <div className="flex justify-between mt-1 text-[10px] text-white/30">
-                    <span>{displayStudent.total_checkins} check-ins</span>
-                    {nextLvl && <span>{nextLvl.minCheckins} para {nextLvl.name}</span>}
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    {/* Simple (controle): coin counter separado */}
+                    <div className="glass rounded-2xl p-8">
+                      <AnimatedCoinCounter target={displayStudent.coins} onCheckin={handleCheckin} />
+                    </div>
+                    <div className="glass rounded-2xl p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{lvl.icon}</span>
+                          <span className="font-display font-bold" style={{ color: lvl.color }}>{lvl.name}</span>
+                        </div>
+                        {nextLvl && <span className="text-xs text-white/30">Próximo: {nextLvl.icon} {nextLvl.name}</span>}
+                      </div>
+                      <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-1000"
+                          style={{ width: `${progress}%`, backgroundColor: lvl.color }} />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[10px] text-white/30">
+                        <span>{displayStudent.total_checkins} check-ins</span>
+                        {nextLvl && <span>{nextLvl.minCheckins} para {nextLvl.name}</span>}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3">
