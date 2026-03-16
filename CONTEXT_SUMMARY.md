@@ -90,3 +90,4 @@ notification_templates, notification_logs, workout_prescriptions
 - Repo: Elitj06/Gym-System
 - URL: gym-system-green.vercel.app
 - Função: IA para detecção de exercícios com câmera
+
